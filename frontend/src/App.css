@@ -1,0 +1,261 @@
+.app-shell {
+  min-height: 100svh;
+  padding: 28px;
+}
+
+.topbar,
+.workspace {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.brand,
+.connection,
+.conversation-heading,
+.activity-heading,
+.now-playing,
+.activity-item {
+  display: flex;
+  align-items: center;
+}
+
+.brand { gap: 11px; }
+
+.brand-mark {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 14px;
+  color: #fff;
+  background: linear-gradient(135deg, #6d53e8, #a361e8);
+  box-shadow: 0 9px 22px rgba(89, 66, 201, 0.24);
+  font-weight: 760;
+}
+
+.eyebrow {
+  margin: 0 0 3px;
+  color: #89849a;
+  font-size: 10px;
+  font-weight: 760;
+  letter-spacing: 0.12em;
+}
+
+h1,
+h2,
+h3,
+p { margin: 0; }
+
+h1,
+h2,
+h3 { color: #28243a; }
+
+h1 { font-size: 18px; letter-spacing: -0.03em; }
+h2 { font-size: 20px; letter-spacing: -0.035em; }
+
+.connection {
+  gap: 8px;
+  padding: 8px 11px;
+  border: 1px solid #e4e0ec;
+  border-radius: 100px;
+  color: #5d586b;
+  background: rgba(255, 255, 255, 0.78);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #f0ae4a;
+}
+
+.connection-connected .status-dot { background: #43b581; box-shadow: 0 0 0 3px #e1f7ec; }
+.connection-disconnected .status-dot { background: #d86d7f; }
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 315px;
+  min-height: 690px;
+  overflow: hidden;
+  border: 1px solid #e7e4ee;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 22px 60px rgba(49, 39, 83, 0.09);
+}
+
+.conversation-panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: 26px;
+}
+
+.conversation-heading,
+.activity-heading {
+  justify-content: space-between;
+  padding-bottom: 22px;
+  border-bottom: 1px solid #eeeaf3;
+}
+
+.voice-note,
+.activity-count {
+  padding: 6px 9px;
+  border-radius: 8px;
+  color: #7568ca;
+  background: #f1efff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.messages {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 13px;
+  min-height: 460px;
+  max-height: 590px;
+  padding: 24px 2px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #ded9ea transparent;
+}
+
+.message {
+  max-width: min(75%, 570px);
+  padding: 12px 14px 9px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.message p { white-space: pre-wrap; }
+.message time,
+.activity-item time { display: block; margin-top: 5px; color: #9691a2; font-size: 10px; }
+
+.message-user {
+  align-self: flex-end;
+  border-bottom-right-radius: 5px;
+  color: #fff;
+  background: #7360da;
+  box-shadow: 0 4px 10px rgba(93, 72, 192, 0.16);
+}
+
+.message-user time { color: #dfd9ff; text-align: right; }
+
+.message-assistant {
+  align-self: flex-start;
+  border: 1px solid #ebe8f1;
+  border-bottom-left-radius: 5px;
+  color: #393548;
+  background: #f8f7fa;
+}
+
+.empty-state {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  flex: 1;
+  min-height: 420px;
+  color: #807a8e;
+  text-align: center;
+}
+
+.empty-state h3 { margin: 15px 0 6px; font-size: 17px; }
+.empty-state p { max-width: 300px; font-size: 13px; line-height: 1.55; }
+
+.wave { display: flex; height: 35px; align-items: center; gap: 4px; }
+.wave i { width: 4px; border-radius: 8px; background: #8674df; animation: wave 1s ease-in-out infinite; }
+.wave i:nth-child(1), .wave i:nth-child(5) { height: 12px; animation-delay: 0.08s; }
+.wave i:nth-child(2), .wave i:nth-child(4) { height: 23px; animation-delay: 0.18s; }
+.wave i:nth-child(3) { height: 34px; animation-delay: 0.28s; }
+
+@keyframes wave { 50% { transform: scaleY(0.5); opacity: 0.55; } }
+
+.now-playing {
+  gap: 11px;
+  padding: 13px 14px;
+  border: 1px solid #e7e3f6;
+  border-radius: 13px;
+  background: #faf9ff;
+}
+
+.pulse {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #7664df;
+  box-shadow: 0 0 0 5px #ece9ff;
+}
+
+.now-playing strong,
+.now-playing span,
+.activity-item strong,
+.activity-item span { display: block; }
+.now-playing strong { color: #454058; font-size: 12px; }
+.now-playing span { margin-top: 2px; color: #847e91; font-size: 11px; }
+
+.activity-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 26px 20px 20px;
+  border-left: 1px solid #eeeaf3;
+  background: #fbfafe;
+}
+
+.activity-count { min-width: 17px; text-align: center; }
+
+.activity-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  margin: 16px 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.activity-item { position: relative; align-items: flex-start; gap: 9px; padding: 10px 0; }
+.activity-item:not(:last-child)::after { position: absolute; top: 29px; left: 5px; width: 1px; height: 22px; background: #e2ddec; content: ''; }
+.activity-icon { color: #7c68dd; font-size: 11px; line-height: 17px; }
+.activity-item div { flex: 1; min-width: 0; }
+.activity-item strong { color: #4b4659; font-size: 12px; }
+.activity-item span { margin-top: 2px; color: #918b9c; font-size: 10px; line-height: 1.35; }
+.activity-item time { margin-top: 2px; white-space: nowrap; }
+.activity-empty { padding-top: 9px; color: #928c9e; font-size: 12px; line-height: 1.55; }
+
+.privacy-note {
+  display: flex;
+  gap: 8px;
+  padding-top: 15px;
+  border-top: 1px solid #eeeaf3;
+  color: #928c9e;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.privacy-note span { color: #7764dd; font-size: 17px; line-height: 11px; }
+
+@media (max-width: 780px) {
+  .app-shell { padding: 14px; }
+  .workspace { grid-template-columns: 1fr; min-height: auto; border-radius: 18px; }
+  .conversation-panel { padding: 20px; }
+  .messages { min-height: 410px; max-height: 58svh; }
+  .activity-panel { min-height: 250px; border-top: 1px solid #eeeaf3; border-left: 0; }
+  .activity-list { max-height: 180px; }
+}
+
+@media (max-width: 440px) {
+  .topbar { margin-bottom: 16px; }
+  .message { max-width: 87%; }
+  .conversation-heading h2 { font-size: 18px; }
+}

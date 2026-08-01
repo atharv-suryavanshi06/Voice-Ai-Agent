@@ -1,0 +1,35 @@
+# Pipecat, installed as a package, with only the extras this app needs:
+#   google    -> Gemini LLM support
+#   deepgram  -> Deepgram STT support
+#   cartesia  -> Cartesia TTS support
+#   silero    -> local VAD (voice activity detection), needed for turn-taking
+#   local     -> LocalAudioTransport (mic + speaker via PyAudio)
+pipecat-ai[google,deepgram,cartesia,silero,local]>=1.4.0
+
+python-dotenv>=1.0.0
+pydantic>=2.0.0,<3.0.0
+pymupdf>=1.22.0
+Pillow>=10.0.0
+numpy>=1.24.0,<3.0.0
+google-genai>=0.1.0
+chromadb>=0.4.0
+rank-bm25>=0.2.2
+flashrank>=0.2.10
+paddleocr>=2.7.0
+paddlepaddle>=2.5.0
+easyocr>=1.7.1
+psycopg2-binary>=2.9.0
+twilio>=9.0.0
+pyngrok>=8.0.0
+langsmith>=0.1.0
+fastapi>=0.110.0
+uvicorn>=0.27.0
+
+
+
+
+# Note: the "local" extra depends on PyAudio, which needs the system
+# PortAudio library installed before `pip install` will succeed:
+#   macOS:          brew install portaudio
+#   Debian/Ubuntu:  sudo apt-get install portaudio19-dev
+#   Windows:        no extra step needed (PyAudio ships prebuilt wheels)

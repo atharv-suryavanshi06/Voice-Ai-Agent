@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.idea/
+.vscode/
+
+# Generated application data and model caches
+.cache/
+chroma_db/
+
+# Frontend dependencies and build output
+frontend/node_modules/
+frontend/dist/
+
+# Test and tooling caches
+.pytest_cache/
+.coverage
+htmlcov/
