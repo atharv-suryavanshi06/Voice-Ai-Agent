@@ -19,8 +19,12 @@ GROUNDING_RULES = (
 def format_retrieved_context(chunks: Iterable[RetrievedChunk]) -> str:
     blocks = []
     for chunk in chunks:
+        policy_code = chunk.policy_code or "not provided"
         blocks.append(
-            f"--- Source Chunk ID: {chunk.chunk_id} ({chunk.policy_name}) ---\n"
+            f"--- Source Chunk ID: {chunk.chunk_id} ---\n"
+            f"Policy: {chunk.policy_name}\n"
+            f"Policy Code: {policy_code}\n"
+            f"Policy Number: {chunk.policy_id}\n"
             f"{chunk.chunk_text}\n"
         )
     return "\n".join(blocks)

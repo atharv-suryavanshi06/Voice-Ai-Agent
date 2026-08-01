@@ -276,6 +276,7 @@ class ConversationManagerProcessor(FrameProcessor):
                 else:
                     is_policy_q = self._manager.should_retrieve_policy_context(last_user_msg)
                     retrieved_chunks = None
+                    retrieval_error = False
                     if is_policy_q:
                         try:
                             policy_id_filter = self._manager.prepare_policy_context(last_user_msg)
@@ -289,13 +290,22 @@ class ConversationManagerProcessor(FrameProcessor):
                                     policy_id_filter,
                                     5,
                                 )
-                        except Exception as e:
-                            print(f"Error retrieving policy chunks: {e}")
+                        except Exception:
+                            retrieval_error = True
+                            logger.exception(
+                                "Policy retrieval failed",
+                                extra={
+                                    "session_id": self._manager.session_id,
+                                    "resolution_status": self._manager.policy_resolution_status,
+                                    "selected_policy_id": self._manager.active_policy_id,
+                                },
+                            )
                             retrieved_chunks = None
                     system_prompt = self._manager.process_user_message(
                         last_user_msg,
                         retrieved_chunks=retrieved_chunks,
                         is_policy_question=is_policy_q,
+                        retrieval_error=retrieval_error,
                     )
                     self._manager.complete_policy_turn(is_policy_q)
 
@@ -310,7 +320,10 @@ class ConversationManagerProcessor(FrameProcessor):
                     )
                     if should_attempt_email:
                         await self._manager.maybe_trigger_email_async(self._email_service, self._db_manager)
-                        system_prompt = self._manager.build_system_prompt(retrieved_chunks=retrieved_chunks)
+                        system_prompt = self._manager.build_system_prompt(
+                            retrieved_chunks=retrieved_chunks,
+                            retrieval_error=retrieval_error,
+                        )
 
                 self._last_system_prompt = system_prompt
                 self._last_retrieved_chunks = retrieved_chunks

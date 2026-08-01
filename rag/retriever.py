@@ -8,9 +8,11 @@ via Reciprocal Rank Fusion (RRF), followed by FlashRank Cross-Encoder Re-ranking
 
 from __future__ import annotations
 import json
+import logging
 import os
+import re
 import time
-from typing import Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 
 try:
@@ -24,6 +26,9 @@ from rag.models import RetrievedChunk
 from rag.embeddings import generate_query_embedding
 from rag.vector_store import PolicyVectorStore
 from rag.reranker import PolicyReranker
+
+
+logger = logging.getLogger(__name__)
 
 
 class PolicyRetriever:
@@ -67,10 +72,20 @@ class PolicyRetriever:
         # The catalogue is the publication authority for policies. Keep older
         # Chroma rows for recovery, but never let unlisted versions compete in
         # normal customer retrieval.
-        self._active_policy_ids = self._load_active_policy_ids()
+        active_catalog = self._load_active_catalog_entries()
+        self._active_policy_ids = {
+            str(policy["policy_id"])
+            for policy in active_catalog
+            if policy.get("policy_id")
+        }
+        self._policy_identity_by_id = {
+            str(policy["policy_id"]): policy
+            for policy in active_catalog
+            if policy.get("policy_id")
+        }
 
     @staticmethod
-    def _load_active_policy_ids() -> Set[str]:
+    def _load_active_catalog_entries() -> List[Dict[str, Any]]:
         catalog_path = os.path.join(
             os.path.dirname(os.path.dirname(__file__)),
             "recommendation",
@@ -79,19 +94,110 @@ class PolicyRetriever:
         try:
             with open(catalog_path, "r", encoding="utf-8") as handle:
                 catalog = json.load(handle)
-            return {
-                str(policy["policy_id"])
+            return [
+                dict(policy)
                 for policy in catalog
                 if policy.get("_ingestion_status", "active") == "active"
                 and policy.get("policy_id")
-            }
+            ]
         except (OSError, ValueError, TypeError, KeyError):
             # A failed catalogue read must not make the retrieval service
             # unavailable. In that exceptional case preserve legacy behavior.
-            return set()
+            return []
+
+    @classmethod
+    def _load_active_policy_ids(cls) -> Set[str]:
+        """Compatibility helper retained for callers and focused tests."""
+        return {
+            str(policy["policy_id"])
+            for policy in cls._load_active_catalog_entries()
+            if policy.get("policy_id")
+        }
 
     def _is_active_catalog_policy(self, policy_id: str) -> bool:
         return not self._active_policy_ids or policy_id in self._active_policy_ids
+
+    def _policy_code(self, policy_id: str, metadata: Optional[Dict[str, Any]] = None) -> Optional[str]:
+        metadata = metadata or {}
+        value = metadata.get("policy_code")
+        if not value:
+            value = getattr(self, "_policy_identity_by_id", {}).get(policy_id, {}).get("policy_code")
+        return str(value) if value else None
+
+    @staticmethod
+    def _identity_pattern(value: Any) -> Optional[re.Pattern[str]]:
+        tokens = re.findall(r"[a-z0-9]+", str(value or "").casefold())
+        if not tokens:
+            return None
+        # Identifiers may be spoken with spaces ("S F H S") or transcribed
+        # with different separators, so match punctuation/whitespace flexibly.
+        separator = r"[^a-z0-9]*" if any(len(token) <= 4 for token in tokens) else r"[^a-z0-9]+"
+        body = separator.join(re.escape(token) for token in tokens)
+        return re.compile(rf"(?<![a-z0-9]){body}(?![a-z0-9])", flags=re.IGNORECASE)
+
+    def ranking_query_for(self, query: str, policy_id_filter: Optional[str]) -> str:
+        """Remove only the resolved policy identity from the ranking query.
+
+        The caller's original question remains untouched and is still used for
+        the answer prompt and conversation history.
+        """
+        if not policy_id_filter:
+            return query
+        identity = getattr(self, "_policy_identity_by_id", {}).get(str(policy_id_filter))
+        if not identity:
+            return query
+
+        ranking_query = query
+        values = (
+            identity.get("policy_name"),
+            identity.get("policy_code"),
+            identity.get("policy_id"),
+        )
+        # Remove labelled appositives as one unit (for example
+        # "policy code SFHS-2026,").  A genuine question such as "what is the
+        # policy code for <name>" has no code value beside the label, so the
+        # requested fact remains in the ranking query.
+        labelled_values = (
+            (r"(?:policy|product)\s+code", identity.get("policy_code")),
+            (r"policy\s+(?:number|no\.?)", identity.get("policy_id")),
+        )
+        for label, value in labelled_values:
+            pattern = self._identity_pattern(value)
+            if pattern:
+                ranking_query = re.sub(
+                    rf"\b{label}\s*(?::|is|-)?\s*{pattern.pattern}",
+                    " ",
+                    ranking_query,
+                    flags=re.IGNORECASE,
+                )
+        for value in values:
+            pattern = self._identity_pattern(value)
+            if pattern:
+                ranking_query = pattern.sub(" ", ranking_query)
+        ranking_query = re.sub(r"\b(?:for|of)\s*(?=[,;:])", " ", ranking_query, flags=re.IGNORECASE)
+        ranking_query = re.sub(
+            r"\b(?:for|of)\s*(?=[?!.]?\s*$)",
+            " ",
+            ranking_query,
+            flags=re.IGNORECASE,
+        )
+        ranking_query = re.sub(
+            r"\b(?:policy|product)\s+(?:code|number)\s*(?=[,;:])",
+            " ",
+            ranking_query,
+            flags=re.IGNORECASE,
+        )
+        ranking_query = re.sub(r"\s+([,;:?])", r"\1", ranking_query)
+        ranking_query = re.sub(r"([,;:])\s*([,;:])", r"\2", ranking_query)
+        ranking_query = re.sub(r"\s+", " ", ranking_query).strip(" ,;:-")
+
+        tokens = set(re.findall(r"[a-z0-9]+", ranking_query.casefold()))
+        non_detail_tokens = {
+            "a", "an", "the", "for", "of", "to", "me", "please", "about",
+            "what", "which", "who", "is", "are", "was", "were", "do", "does",
+            "can", "could", "would", "will", "you", "tell", "give",
+        }
+        return ranking_query if tokens - non_detail_tokens else query
 
     @staticmethod
     def _needs_broader_evidence(query: str) -> bool:
@@ -142,7 +248,8 @@ class PolicyRetriever:
                 policy_name=metadata.get("policy_name", ""),
                 chunk_index=int(metadata.get("chunk_index", 0)),
                 chunk_text=text,
-                similarity_score=0.0
+                similarity_score=0.0,
+                policy_code=self._policy_code(metadata.get("policy_id", ""), metadata),
             ))
 
         self._bm25_chunks = chunks
@@ -204,7 +311,8 @@ class PolicyRetriever:
                 policy_name=metadata.get("policy_name", ""),
                 chunk_index=int(metadata.get("chunk_index", 0)),
                 chunk_text=documents[idx],
-                similarity_score=similarity_score
+                similarity_score=similarity_score,
+                policy_code=self._policy_code(metadata.get("policy_id", ""), metadata),
             ))
 
         return chunks
@@ -239,7 +347,8 @@ class PolicyRetriever:
                 policy_name=chunk.policy_name,
                 chunk_index=chunk.chunk_index,
                 chunk_text=chunk.chunk_text,
-                similarity_score=float(score)
+                similarity_score=float(score),
+                policy_code=chunk.policy_code,
             ))
 
         return top_bm25
@@ -275,7 +384,8 @@ class PolicyRetriever:
                 policy_name=c.policy_name,
                 chunk_index=c.chunk_index,
                 chunk_text=c.chunk_text,
-                similarity_score=round(rrf_scores[cid], 6)
+                similarity_score=round(rrf_scores[cid], 6),
+                policy_code=c.policy_code,
             ))
 
         return fused_candidates
@@ -301,24 +411,44 @@ class PolicyRetriever:
         if not query.strip():
             return []
 
+        # Use a detail-only query for ranking when identity is already exact.
+        # The original query remains untouched for generation and tracing.
+        ranking_query = self.ranking_query_for(query, policy_id_filter)
+
         # Step 1: Retrieve candidate lists from Dense Vector and BM25
-        candidate_k = self.candidate_k + 10 if self._needs_broader_evidence(query) else self.candidate_k
-        vector_candidates = self._get_vector_candidates(query, candidate_k, policy_id_filter)
-        bm25_candidates = self._get_bm25_candidates(query, candidate_k, policy_id_filter)
+        candidate_k = self.candidate_k + 10 if self._needs_broader_evidence(ranking_query) else self.candidate_k
+        vector_candidates = self._get_vector_candidates(ranking_query, candidate_k, policy_id_filter)
+        bm25_candidates = self._get_bm25_candidates(ranking_query, candidate_k, policy_id_filter)
 
         # Step 2: Combine via Reciprocal Rank Fusion (RRF)
         fused_candidates = self._reciprocal_rank_fusion(vector_candidates, bm25_candidates)
 
         if not fused_candidates:
+            logger.info(
+                "Policy retrieval completed",
+                extra={
+                    "policy_id": policy_id_filter,
+                    "candidate_count": 0,
+                    "accepted_chunk_ids": [],
+                },
+            )
             return []
 
         # Step 3: Re-rank fused candidates using FlashRank Cross-Encoder
-        final_reranked = self.reranker.rerank(query, fused_candidates, top_k=top_k)
+        final_reranked = self.reranker.rerank(ranking_query, fused_candidates, top_k=top_k)
         final_reranked = [
             chunk for chunk in final_reranked
             if chunk.similarity_score >= self.min_relevance_score
         ]
         duration_ms = (time.perf_counter() - start_t) * 1000.0
+        logger.info(
+            "Policy retrieval completed",
+            extra={
+                "policy_id": policy_id_filter,
+                "candidate_count": len(fused_candidates),
+                "accepted_chunk_ids": [chunk.chunk_id for chunk in final_reranked],
+            },
+        )
 
         # Log retrieval span to LangSmith
         if self.enable_tracing:

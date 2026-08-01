@@ -135,14 +135,45 @@ python run_ingestion.py
 
 Ingestion extracts and validates metadata, prepares chunks and embeddings, stages ChromaDB and optional PostgreSQL data, atomically publishes the catalogue, and only then activates the new version. Failures are recorded in `ingestion/ingestion_manifest.json`; the previously active version is retained when replacement ingestion fails.
 
+### Markdown-backed candidate index
+
+Validate all active Markdown sources and preview the isolated index without an API call or Chroma write:
+
+```powershell
+python -m ingestion.markdown_reindex
+```
+
+The dry run requires exactly one UTF-8 Markdown source for every active catalog policy ID. Identity comes from the labeled policy number inside each document, never its filename. Missing, duplicate, unknown, or multi-ID sources abort before embeddings.
+
+After explicitly approving transmission of the complete Markdown policy text to Google for embeddings, build the separate candidate collection:
+
+```powershell
+python -m ingestion.markdown_reindex --execute
+```
+
+The default candidate is `insurance_policies_candidate_faq_v1`. The builder refuses the configured active name and any pre-existing candidate name, waits until all embeddings succeed before creating Chroma state, and validates row counts, policy IDs, FAQ chunk provenance, recipe hashes, and embedding settings. It never activates the candidate.
+
 ## RAG evaluation
 
 ```powershell
 python evaluation/validate_rag.py
 python evaluation/test_relevance_scores.py
+python evaluation/validate_rag_60.py `
+  --collection insurance_policies_candidate_faq_v1 `
+  --baseline-collection insurance_policies
 ```
 
 The validation suite uses the same canonical retrieval/acceptance service as production. Positive cases validate expected facts and source policies against the Markdown ground-truth documents. Negative cases require the canonical insufficient-evidence response and zero accepted chunks.
+
+The fixed acceptance command always runs the candidate twice and exits successfully only when both runs score 60/60: policy code and number 9/9, FAQ 45/45, and negative guardrails 6/6. Every positive case enforces the expected policy ID, and candidate average/P95 latency must remain within 20% of the active collection baseline. A timestamped JSON evidence file is written under `evaluation/results/`.
+
+Only after that command succeeds, activate through configuration and restart the process:
+
+```env
+RAG_COLLECTION_NAME=insurance_policies_candidate_faq_v1
+```
+
+Keep `insurance_policies` for rollback. To roll back, restore `RAG_COLLECTION_NAME=insurance_policies` and restart; do not delete either collection during the canary period. PostgreSQL Markdown synchronization also resolves content by embedded policy ID and accepts a PDF only when its stem exactly matches that verified Markdown source or an exact-ID ingestion recorded it. If that verification is incomplete, document text and attachments for the unverified policy fail closed and are omitted from email.
 
 No fixed latency, zero-hallucination, WER, or accuracy result is guaranteed by this repository. Measure performance in the deployment environment and treat evaluation output as the current result.
 

@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Tuple
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
-if sys.platform == "win32":
+if sys.platform == "win32" and __name__ == "__main__":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 from rag.grounding import INSUFFICIENT_EVIDENCE_RESPONSE
@@ -28,6 +28,8 @@ VALIDATION_SUITE: List[Dict[str, Any]] = [
         "category": "Fact Retrieval (TrustShield)",
         "query": "What is the policy number and sum insured for TrustShield Health Suraksha?",
         "expected_policy": "TrustShield Health Suraksha",
+        "expected_policy_id": "TSG/HP/2026/00562481",
+        "policy_id_filter": "TSG/HP/2026/00562481",
         "ground_truth": "TrustShield_Health_Suraksha_Policy_Document.md",
         "expected_groups": [
             ["TSG/HP/2026/00562481"],
@@ -40,6 +42,8 @@ VALIDATION_SUITE: List[Dict[str, Any]] = [
         "category": "Medical Condition Coverage",
         "query": "Does TrustShield Health Suraksha cover pre-existing diabetes and hypertension?",
         "expected_policy": "TrustShield Health Suraksha",
+        "expected_policy_id": "TSG/HP/2026/00562481",
+        "policy_id_filter": "TSG/HP/2026/00562481",
         "ground_truth": "TrustShield_Health_Suraksha_Policy_Document.md",
         "expected_groups": [["diabetes"], ["hypertension"], ["cover", "waiting period", "yes"]],
         "expect_unaware": False,
@@ -49,6 +53,8 @@ VALIDATION_SUITE: List[Dict[str, Any]] = [
         "category": "Fact Retrieval (ApexCare)",
         "query": "What is the sum insured and premium for ApexCare Elevate Health Plan?",
         "expected_policy": "ApexCare Elevate Health Plan",
+        "expected_policy_id": "ACH/EL/2026/00721904",
+        "policy_id_filter": "ACH/EL/2026/00721904",
         "ground_truth": "ApexCare_Elevate_Health_Plan_Policy_Document.md",
         "expected_groups": [
             ["75,00,000", "75 lakh", "7500000"],
@@ -61,6 +67,8 @@ VALIDATION_SUITE: List[Dict[str, Any]] = [
         "category": "Fact Retrieval (VitalCare)",
         "query": "What is the maximum age limit for VitalCare Family Health Shield?",
         "expected_policy": "VitalCare Family Health Shield",
+        "expected_policy_id": "VCH/FL/2026/00193572",
+        "policy_id_filter": "VCH/FL/2026/00193572",
         "ground_truth": "VitalCare_Family_Health_Shield_Policy_Document.md",
         "expected_groups": [["no maximum", "no upper", "lifetime renewability"]],
         "expect_unaware": False,
@@ -98,6 +106,8 @@ def _catalog_policy_number_cases() -> List[Dict[str, Any]]:
             "category": "Catalog Policy Number (Voice-style)",
             "query": f"what is the policy number for {policy['policy_name']}",
             "expected_policy": policy["policy_name"],
+            "expected_policy_id": str(policy["policy_id"]),
+            "policy_id_filter": str(policy["policy_id"]),
             "expected_groups": [[str(policy["policy_id"])]] ,
             "expect_unaware": False,
             "catalog_backed": True,
@@ -132,9 +142,18 @@ def evaluate_response(test_case: Dict[str, Any], response: Any) -> Tuple[bool, s
     if not chunks:
         return False, "No accepted evidence was returned"
 
-    expected_policy = test_case.get("expected_policy", "").lower()
-    if expected_policy and not any(expected_policy in chunk.policy_name.lower() for chunk in chunks):
-        return False, f"Expected source policy was absent: {test_case['expected_policy']}"
+    expected_policy_id = str(test_case.get("expected_policy_id", "") or "")
+    if expected_policy_id:
+        if not any(chunk.policy_id == expected_policy_id for chunk in chunks):
+            return False, f"Expected source policy ID was absent: {expected_policy_id}"
+        if any(chunk.policy_id != expected_policy_id for chunk in chunks):
+            return False, f"Wrong-policy evidence was returned with scoped ID: {expected_policy_id}"
+    else:
+        # Backward compatibility for ad-hoc external test cases that have not
+        # yet adopted exact policy IDs.
+        expected_policy = test_case.get("expected_policy", "").lower()
+        if expected_policy and not any(expected_policy in chunk.policy_name.lower() for chunk in chunks):
+            return False, f"Expected source policy was absent: {test_case['expected_policy']}"
 
     ground_truth = _ground_truth_text(test_case)
     for group in test_case.get("expected_groups", []):
@@ -161,7 +180,10 @@ def run_rag_validation() -> None:
     results = []
     for test_case in test_cases:
         start = time.perf_counter()
-        response = pipeline.answer_question(test_case["query"])
+        response = pipeline.answer_question(
+            test_case["query"],
+            policy_id=test_case.get("policy_id_filter"),
+        )
         duration_ms = (time.perf_counter() - start) * 1000.0
         passed, reason = evaluate_response(test_case, response)
         top_score = response.retrieved_chunks[0].similarity_score if response.retrieved_chunks else 0.0

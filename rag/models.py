@@ -16,6 +16,7 @@ class Chunk:
     chunk_index: int      # 0-based sequence index
     chunk_text: str       # Extracted text content of the chunk
     embedding: Optional[List[float]] = None  # 3072-dimensional vector embedding
+    policy_code: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Serializes the Chunk object to a dictionary."""
@@ -30,7 +31,8 @@ class Chunk:
             policy_name=str(data["policy_name"]),
             chunk_index=int(data["chunk_index"]),
             chunk_text=str(data["chunk_text"]),
-            embedding=data.get("embedding")
+            embedding=data.get("embedding"),
+            policy_code=data.get("policy_code"),
         )
 
 
@@ -43,6 +45,7 @@ class RetrievedChunk:
     chunk_index: int
     chunk_text: str
     similarity_score: float
+    policy_code: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Serializes the RetrievedChunk object to a dictionary."""
@@ -57,7 +60,8 @@ class RetrievedChunk:
             policy_name=str(data["policy_name"]),
             chunk_index=int(data["chunk_index"]),
             chunk_text=str(data["chunk_text"]),
-            similarity_score=float(data["similarity_score"])
+            similarity_score=float(data["similarity_score"]),
+            policy_code=data.get("policy_code"),
         )
 
 

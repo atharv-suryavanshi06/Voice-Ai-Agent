@@ -79,7 +79,8 @@ class PolicyReranker:
                 policy_name=original_chunk.policy_name,
                 chunk_index=original_chunk.chunk_index,
                 chunk_text=original_chunk.chunk_text,
-                similarity_score=round(score, 4)
+                similarity_score=round(score, 4),
+                policy_code=original_chunk.policy_code,
             ))
 
         return reranked_chunks

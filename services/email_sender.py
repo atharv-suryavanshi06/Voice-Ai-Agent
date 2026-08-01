@@ -5,17 +5,41 @@ Gmail SMTP Email Service for delivering recommended policy details and complete 
 documents to callers. Integrates with PostgreSQL to fetch policy document text and log delivery.
 """
 
-import os
-import smtplib
 import logging
+import os
+import re
+import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from typing import Any, List, Optional
 
 from core import config
+from recommendation.policy_identity import (
+    duplicate_policy_name_keys,
+    normalize_label,
+    policy_display_labels,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _policy_name_key(policy: Any) -> str:
+    return normalize_label(getattr(policy, "policy_name", ""))
+
+
+def _safe_filename_component(value: str) -> str:
+    """Make an ASCII attachment component safe across mail clients."""
+    component = re.sub(r"[^A-Za-z0-9._-]+", "_", str(value).strip())
+    return component.strip("._-") or "Policy"
+
+
+def _policy_pdf_filename(policy: Any, disambiguate: bool) -> str:
+    policy_name = _safe_filename_component(getattr(policy, "policy_name", "Policy"))
+    if not disambiguate:
+        return f"{policy_name}_Policy_Document.pdf"
+    policy_id = _safe_filename_component(getattr(policy, "policy_id", "Unknown"))
+    return f"{policy_name}_{policy_id}_Policy_Document.pdf"
 
 
 def _safe_error_message(error: BaseException) -> str:
@@ -28,11 +52,19 @@ def _safe_error_message(error: BaseException) -> str:
 class EmailService:
     """Handles sending policy emails via Gmail SMTP and logging results to PostgreSQL."""
 
-    def __init__(self) -> None:
+    def __init__(self, policy_catalog: Optional[List[Any]] = None) -> None:
         self.smtp_server = config.SMTP_SERVER
         self.smtp_port = config.SMTP_PORT
         self.sender_email = (config.GMAIL_SENDER_EMAIL or "").strip()
         self.app_password = (config.GMAIL_APP_PASSWORD or "").replace(" ", "").strip()
+        if policy_catalog is None:
+            try:
+                from recommendation.recommendation_engine import RecommendationEngine
+                policy_catalog = RecommendationEngine().policies
+            except Exception:
+                logger.exception("Could not load catalog identity labels for email presentation")
+                policy_catalog = []
+        self.duplicate_policy_names = duplicate_policy_name_keys(policy_catalog)
 
 
     def is_configured(self) -> bool:
@@ -81,19 +113,41 @@ class EmailService:
         top_policy = policies[0] if policies else None
         top_policy_id = top_policy.policy_id if top_policy else "N/A"
         top_policy_name = top_policy.policy_name if top_policy else "Recommended Insurance Policy"
+        duplicate_names = self.duplicate_policy_names | duplicate_policy_name_keys(policies)
+        policy_labels = policy_display_labels(policies, duplicate_names=duplicate_names)
+        top_policy_is_duplicate = bool(top_policy and _policy_name_key(top_policy) in duplicate_names)
+        top_policy_label = policy_labels[0] if policy_labels else top_policy_name
 
         # Fetch complete policy document text from PostgreSQL if database manager is available
         doc_data = None
         doc_text = ""
         pdf_path = None
         if db_manager and hasattr(db_manager, "get_policy_document") and top_policy:
-            doc_data = db_manager.get_policy_document(top_policy.policy_id)
-            if doc_data:
+            fetched_document = db_manager.get_policy_document(top_policy.policy_id)
+            document_verified = True
+            if hasattr(db_manager, "is_policy_document_verified"):
+                try:
+                    document_verified = bool(
+                        db_manager.is_policy_document_verified(top_policy.policy_id)
+                    )
+                except Exception:
+                    document_verified = False
+                    logger.exception(
+                        "Policy document verification check failed",
+                        extra={"policy_id": top_policy.policy_id},
+                    )
+            if fetched_document and document_verified:
+                doc_data = fetched_document
                 doc_text = doc_data.get("document_text", "")
                 pdf_path = doc_data.get("pdf_path")
+            elif fetched_document:
+                logger.error(
+                    "Suppressed unverified policy document from recommendation email",
+                    extra={"policy_id": top_policy.policy_id},
+                )
 
         # Build Email Subject & Body
-        subject = f"Your Suggested Insurance Policy Details - {top_policy_name}"
+        subject = f"Your Suggested Insurance Policy Details - {top_policy_label}"
 
         # HTML Body
         html_content = f"""
@@ -123,10 +177,10 @@ class EmailService:
                 <p>Thank you for speaking with our Voice AI advisor today! As discussed, here are the details of your recommended health insurance policy matched to your preferences:</p>
         """
 
-        for p in policies:
+        for p, policy_label in zip(policies, policy_labels):
             html_content += f"""
                 <div class="policy-card">
-                    <div class="policy-title">{p.policy_name} ({p.insurer})</div>
+                    <div class="policy-title">{policy_label} ({p.insurer})</div>
                     <table class="meta-table">
                         <tr><td class="label">Policy ID:</td><td>{p.policy_id}</td></tr>
                         <tr><td class="label">Plan Type:</td><td>{p.plan_type}</td></tr>
@@ -164,7 +218,11 @@ class EmailService:
 
         # Attach complete PDF document directly from PostgreSQL BYTEA or local disk
         pdf_bytes = doc_data.get("pdf_data") if doc_data else None
-        pdf_name = f"{top_policy_name.replace(' ', '_')}_Policy_Document.pdf"
+        pdf_name = (
+            _policy_pdf_filename(top_policy, top_policy_is_duplicate)
+            if top_policy
+            else "Recommended_Insurance_Policy_Document.pdf"
+        )
 
         if pdf_bytes:
             try:
@@ -177,8 +235,11 @@ class EmailService:
         elif pdf_path and os.path.exists(pdf_path):
             try:
                 with open(pdf_path, "rb") as f:
-                    part = MIMEApplication(f.read(), Name=os.path.basename(pdf_path))
-                    part['Content-Disposition'] = f'attachment; filename="{os.path.basename(pdf_path)}"'
+                    attachment_name = (
+                        pdf_name if top_policy_is_duplicate else os.path.basename(pdf_path)
+                    )
+                    part = MIMEApplication(f.read(), Name=attachment_name)
+                    part['Content-Disposition'] = f'attachment; filename="{attachment_name}"'
                     msg.attach(part)
             except Exception as pdf_err:
                 logger.warning(f"Could not attach PDF file: {pdf_err}")

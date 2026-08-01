@@ -19,9 +19,13 @@ from .state import ConversationState
 from rag.models import RetrievedChunk
 from rag.grounding import GROUNDING_RULES, INSUFFICIENT_EVIDENCE_RESPONSE, format_retrieved_context
 from .amounts import format_indian_currency_for_speech
+from recommendation.policy_identity import policy_display_labels
 
 AGENT_NAME = "Riya"
 COMPANY_DESCRIPTION = "an insurance marketplace that compares policies from multiple insurers"
+POLICY_SERVICE_UNAVAILABLE_RESPONSE = (
+    "I'm sorry, I can't access the policy information right now. Please try again shortly."
+)
 
 
 def _persona() -> str:
@@ -140,7 +144,24 @@ def _answering_policy_question_instructions(
     return instructions
 
 
-def _recommending_policy_instructions(recommendations: Optional[List[Any]] = None) -> str:
+def _policy_service_unavailable_instructions(next_question: Optional[Question]) -> str:
+    instructions = (
+        "The policy retrieval service failed temporarily. Do not say that the policy information "
+        "is unknown or unavailable in the policy document, and do not guess an answer. "
+        f"Respond EXACTLY with: '{POLICY_SERVICE_UNAVAILABLE_RESPONSE}'"
+    )
+    if next_question is not None:
+        instructions += (
+            f" After that, return to the caller's {next_question.topic}, which is the next "
+            "required detail."
+        )
+    return instructions
+
+
+def _recommending_policy_instructions(
+    recommendations: Optional[List[Any]] = None,
+    duplicate_policy_names: Optional[List[str]] = None,
+) -> str:
     if not recommendations:
         return (
             "All questions have been answered and you now have all customer details.\n"
@@ -151,9 +172,10 @@ def _recommending_policy_instructions(recommendations: Optional[List[Any]] = Non
         )
     
     policy_lines = []
-    for i, p in enumerate(recommendations, 1):
+    labels = policy_display_labels(recommendations, duplicate_policy_names or [])
+    for i, (p, policy_label) in enumerate(zip(recommendations, labels), 1):
         policy_lines.append(
-            f"{i}. {p.policy_name} by {p.insurer}: Annual premium {format_indian_currency_for_speech(p.premium)}, "
+            f"{i}. {policy_label} by {p.insurer}: Annual premium {format_indian_currency_for_speech(p.premium)}, "
             f"sum insured {format_indian_currency_for_speech(p.sum_insured)}. "
             f"Diabetes Covered: {'Yes' if p.covers_diabetes else 'No'}, "
             f"Hypertension Covered: {'Yes' if p.covers_hypertension else 'No'}."
@@ -236,6 +258,8 @@ def build_system_prompt(
     policy_selection_required: bool = False,
     recommended_policies: Optional[List[Any]] = None,
     retry_question: Optional[Question] = None,
+    retrieval_error: bool = False,
+    duplicate_policy_names: Optional[List[str]] = None,
 ) -> str:
     """Compose the full system prompt for the current turn."""
     sections = [_persona(), _ground_rules(), _profile_summary_block(profile)]
@@ -247,16 +271,21 @@ def build_system_prompt(
         sections.append(_missing_info_block(missing_fields))
 
     if policy_selection_required:
-        names = ", ".join(str(policy.policy_name) for policy in (recommended_policies or []))
+        names = ", ".join(policy_display_labels(recommended_policies or []))
         sections.append(
             "The caller asked a policy-specific question but has not identified one of several recommendations. "
             f"Ask one brief clarification question naming the available policies: {names}. "
+            "When two options share a name, say each option's code and policy number exactly as shown. "
             "Do not guess, retrieve from another policy, or answer the detail yet."
         )
+    elif retrieval_error and state == ConversationState.ANSWERING_POLICY_QUESTIONS:
+        sections.append(_policy_service_unavailable_instructions(next_question))
     elif retry_question is not None:
         sections.append(_repeat_question_instructions(retry_question))
     elif state == ConversationState.RECOMMENDING_POLICY:
-        sections.append(_recommending_policy_instructions(recommendations))
+        sections.append(
+            _recommending_policy_instructions(recommendations, duplicate_policy_names)
+        )
     else:
         instruction_builder = _STATE_INSTRUCTION_BUILDERS[state]
         if state == ConversationState.ENDING_CALL:

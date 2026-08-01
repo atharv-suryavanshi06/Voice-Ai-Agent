@@ -6,7 +6,7 @@ from the policy document.
 """
 
 from dataclasses import dataclass, asdict
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 @dataclass
 class PolicyMetadata:
@@ -24,6 +24,7 @@ class PolicyMetadata:
     covers_hypertension: bool
     parents_allowed: bool
     children_allowed: bool
+    policy_code: Optional[str] = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "PolicyMetadata":
@@ -42,6 +43,11 @@ class PolicyMetadata:
             covers_hypertension=bool(data.get("covers_hypertension", False)),
             parents_allowed=bool(data.get("parents_allowed", False)),
             children_allowed=bool(data.get("children_allowed", False)),
+            policy_code=(
+                str(data["policy_code"]).strip()
+                if data.get("policy_code") is not None
+                else None
+            ),
         )
 
 

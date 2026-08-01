@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import os
 import tempfile
@@ -11,6 +12,7 @@ from typing import Any, Callable, Optional, Tuple
 from ingestion.lifecycle import IngestionJournal
 from ingestion.metadata_extractor import parse_metadata_from_text
 from ingestion.models import PolicyMetadata
+from ingestion.recipe import DEFAULT_EMBEDDING_MODEL, build_ingestion_identity
 from ingestion.text_extractor import extract_text_from_pdf
 from rag.chunker import SemanticChunker
 from rag.embeddings import generate_embeddings
@@ -78,6 +80,7 @@ def process_policy_pdf(
     vector_store: Optional[PolicyVectorStore] = None,
     db_manager: Any = None,
     journal_path: Optional[str] = None,
+    embedding_model: str = DEFAULT_EMBEDDING_MODEL,
 ) -> Tuple[str, PolicyMetadata]:
     """Prepare every store first, then publish one retry-safe policy version."""
     if not os.path.exists(pdf_path):
@@ -87,16 +90,23 @@ def process_policy_pdf(
     catalog_path = catalog_path or os.path.join(base_dir, "recommendation", "policy_catalog.json")
     journal_path = journal_path or os.path.join(base_dir, "ingestion", "ingestion_manifest.json")
     journal = IngestionJournal(journal_path)
+    effective_chunker = chunker or SemanticChunker()
 
     with open(pdf_path, "rb") as handle:
         pdf_bytes = handle.read()
     document_hash = hashlib.sha256(pdf_bytes).hexdigest()
-    ingestion_id = document_hash
+    ingestion_id, ingestion_recipe = build_ingestion_identity(
+        source_hash=document_hash,
+        source_format="pdf",
+        chunker=effective_chunker,
+        embedding_model=embedding_model,
+    )
     journal.update(
         ingestion_id,
         "pending",
         source_path=os.path.abspath(pdf_path),
         document_hash=document_hash,
+        ingestion_recipe=ingestion_recipe,
     )
 
     policy_id = "unknown"
@@ -126,16 +136,44 @@ def process_policy_pdf(
         )
 
         print("Step 3: Preparing semantic chunks and embeddings...")
-        effective_chunker = chunker or SemanticChunker()
         chunks = effective_chunker.split_text_to_chunks(text, metadata.policy_id, metadata.policy_name)
         if not chunks:
             raise ValueError("Policy text produced no chunks")
-        embedded_chunks = embedding_generator(chunks)
+        embedding_parameters = inspect.signature(embedding_generator).parameters
+        if "model_name" in embedding_parameters or any(
+            parameter.kind == inspect.Parameter.VAR_KEYWORD
+            for parameter in embedding_parameters.values()
+        ):
+            embedded_chunks = embedding_generator(chunks, model_name=embedding_model)
+        else:
+            # Keep injected legacy/offline generators source-compatible.
+            embedded_chunks = embedding_generator(chunks)
         if not embedded_chunks or any(chunk.embedding is None for chunk in embedded_chunks):
             raise RuntimeError("Embedding generation did not populate every policy chunk")
 
         effective_vector_store = vector_store or PolicyVectorStore()
-        effective_vector_store.stage_policy_chunks(policy_id, embedded_chunks, ingestion_id)
+        provenance = {
+            "source_filename": os.path.basename(pdf_path),
+            "source_hash": document_hash,
+            "source_format": "pdf",
+            **ingestion_recipe,
+            "ingestion_recipe_hash": ingestion_id,
+            "policy_code": getattr(metadata, "policy_code", None),
+        }
+        stage_parameters = inspect.signature(effective_vector_store.stage_policy_chunks).parameters
+        if "provenance" in stage_parameters or any(
+            parameter.kind == inspect.Parameter.VAR_KEYWORD
+            for parameter in stage_parameters.values()
+        ):
+            effective_vector_store.stage_policy_chunks(
+                policy_id,
+                embedded_chunks,
+                ingestion_id,
+                provenance=provenance,
+            )
+        else:
+            # Preserve compatibility with injected stores used by existing callers/tests.
+            effective_vector_store.stage_policy_chunks(policy_id, embedded_chunks, ingestion_id)
         staged_vectors = True
 
         if active_db is None:

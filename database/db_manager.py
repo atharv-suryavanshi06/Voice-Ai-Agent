@@ -5,6 +5,7 @@ Manages PostgreSQL connection and JSONB operations for persisting customer profi
 Performs automatic table creation, GIN index initialization, and JSONB upserts.
 """
 
+import hashlib
 import json
 import logging
 import uuid
@@ -13,6 +14,49 @@ from typing import Any, Dict, List, Optional
 from core import config
 
 logger = logging.getLogger(__name__)
+
+_EXACT_ID_SYNC_VERSION = "v1"
+
+
+def _exact_id_sync_backup_id(policy_id: str) -> str:
+    digest = hashlib.sha256(policy_id.encode("utf-8")).hexdigest()
+    return f"exact-id-markdown-sync-{_EXACT_ID_SYNC_VERSION}:{digest}"
+
+
+def _optional_bytes(value: Any) -> Optional[bytes]:
+    return bytes(value) if value is not None else None
+
+
+def _paths_equal(left: Optional[str], right: Optional[str]) -> bool:
+    if not left or not right:
+        return left == right
+    import os
+    return os.path.normcase(os.path.abspath(left)) == os.path.normcase(os.path.abspath(right))
+
+
+def _document_matches_source(
+    existing: Optional[Dict[str, Any]],
+    entry: Dict[str, Any],
+    document_text: str,
+    pdf_path: Optional[str],
+    pdf_bytes: Optional[bytes],
+) -> bool:
+    """Return True when an exact-source sync would be a no-op."""
+    if not existing:
+        return False
+
+    numeric_fields = ("premium", "sum_insured")
+    text_fields = ("policy_id", "policy_name", "insurer", "plan_type")
+    if any(str(existing.get(field) or "") != str(entry.get(field) or "") for field in text_fields):
+        return False
+    for field in numeric_fields:
+        if float(existing.get(field) or 0.0) != float(entry.get(field) or 0.0):
+            return False
+    return (
+        (existing.get("document_text") or "") == document_text
+        and _paths_equal(existing.get("pdf_path"), pdf_path)
+        and _optional_bytes(existing.get("pdf_data")) == _optional_bytes(pdf_bytes)
+    )
 
 try:
     import psycopg2
@@ -42,6 +86,7 @@ class PostgresDBManager:
         self.password = password or config.POSTGRES_PASSWORD
         self.database_url = database_url or config.DATABASE_URL
         self.enabled = False
+        self._verified_policy_document_ids: set[str] = set()
 
         if not PSYCOPG2_AVAILABLE:
             print("[Database Warning] psycopg2-binary not available. Database storage disabled.")
@@ -266,7 +311,10 @@ class PostgresDBManager:
             print(f"[Database] Connected to PostgreSQL '{self.dbname}' (tables: customer_profiles, policy_documents, sent_email_logs ready).")
             
             # Sync pre-existing policy documents into PostgreSQL
-            self.sync_existing_markdown_documents()
+            if not self.sync_existing_markdown_documents():
+                logger.error(
+                    "Policy document synchronization was incomplete; unverified email document content and attachments will fail closed"
+                )
             return True
         except Exception as e:
             print(f"[Database Warning] Could not connect to PostgreSQL: {e}")
@@ -426,6 +474,10 @@ class PostgresDBManager:
         """Compatibility hook; connections are currently opened per operation."""
         return None
 
+    def is_policy_document_verified(self, policy_id: str) -> bool:
+        """Whether exact-ID synchronization/ingestion verified this row this run."""
+        return str(policy_id) in getattr(self, "_verified_policy_document_ids", set())
+
     def get_profile(self, session_id: str) -> Optional[Dict[str, Any]]:
         """
         Retrieves the JSONB customer profile dictionary for a given session ID.
@@ -462,9 +514,19 @@ class PostgresDBManager:
         sum_insured: Optional[float] = None,
         pdf_path: Optional[str] = None,
         pdf_bytes: Optional[bytes] = None,
+        replace_pdf: bool = False,
+        backup_id: Optional[str] = None,
+        backup_reason: Optional[str] = None,
     ) -> bool:
         """
         Stores or updates a complete policy document text, raw PDF binary bytes (BYTEA), and metadata in PostgreSQL `policy_documents`.
+
+        ``replace_pdf`` is intentionally opt-in for backward compatibility. It
+        lets an exact-source repair clear a previously misassigned attachment
+        when the verified source has no PDF. When ``backup_id`` is provided,
+        the previous row is copied to ``policy_ingestions`` in the same
+        transaction before it is replaced. A stable backup ID makes retries
+        idempotent without adding another database table.
         """
         if not self.enabled:
             return False
@@ -474,6 +536,40 @@ class PostgresDBManager:
             conn = self._get_connection()
             with conn:
                 with conn.cursor() as cur:
+                    if backup_id:
+                        cur.execute(
+                            """
+                            INSERT INTO policy_ingestions
+                                (ingestion_id, policy_id, status, metadata, document_text,
+                                 pdf_path, pdf_data, error_context, updated_at)
+                            SELECT
+                                %s,
+                                policy_id,
+                                'backup',
+                                jsonb_build_object(
+                                    'policy_name', policy_name,
+                                    'insurer', insurer,
+                                    'plan_type', plan_type,
+                                    'premium', premium,
+                                    'sum_insured', sum_insured,
+                                    'backup_reason', %s
+                                ),
+                                document_text,
+                                pdf_path,
+                                pdf_data,
+                                %s,
+                                CURRENT_TIMESTAMP
+                            FROM policy_documents
+                            WHERE policy_id = %s
+                            ON CONFLICT (ingestion_id) DO NOTHING;
+                            """,
+                            (
+                                backup_id,
+                                backup_reason or "policy document replacement",
+                                backup_reason,
+                                policy_id,
+                            ),
+                        )
                     cur.execute(
                         """
                         INSERT INTO policy_documents
@@ -487,10 +583,24 @@ class PostgresDBManager:
                             sum_insured = EXCLUDED.sum_insured,
                             document_text = EXCLUDED.document_text,
                             pdf_path = EXCLUDED.pdf_path,
-                            pdf_data = COALESCE(EXCLUDED.pdf_data, policy_documents.pdf_data),
+                            pdf_data = CASE
+                                WHEN %s THEN EXCLUDED.pdf_data
+                                ELSE COALESCE(EXCLUDED.pdf_data, policy_documents.pdf_data)
+                            END,
                             updated_at = CURRENT_TIMESTAMP;
                         """,
-                        (policy_id, policy_name, insurer, plan_type, premium, sum_insured, document_text, pdf_path, binary_data),
+                        (
+                            policy_id,
+                            policy_name,
+                            insurer,
+                            plan_type,
+                            premium,
+                            sum_insured,
+                            document_text,
+                            pdf_path,
+                            binary_data,
+                            replace_pdf,
+                        ),
                     )
             conn.close()
             return True
@@ -599,6 +709,9 @@ class PostgresDBManager:
                         (ingestion_id,),
                     )
             conn.close()
+            verified_ids = getattr(self, "_verified_policy_document_ids", set())
+            verified_ids.add(str(policy_id))
+            self._verified_policy_document_ids = verified_ids
             return True
         except Exception:
             logger.exception("Failed to activate policy ingestion", extra={"ingestion_id": ingestion_id})
@@ -625,15 +738,47 @@ class PostgresDBManager:
             logger.exception("Failed to mark policy ingestion failed", extra={"ingestion_id": ingestion_id})
             return False
 
-    def get_policy_document(self, policy_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Retrieves complete policy document text, raw PDF bytes (BYTEA), and metadata from PostgreSQL `policy_documents`.
+    def _get_verified_ingestion_pdf(self, policy_id: str) -> Optional[Dict[str, Any]]:
+        """Return the newest attachment recorded by an exact-ID activation.
+
+        Startup Markdown synchronization must not infer attachment ownership
+        from a similar product name. An active ingestion is safe provenance
+        because its extracted metadata and stored document use the same exact
+        policy ID.
         """
         if not self.enabled:
             return None
 
+        conn = self._get_connection()
         try:
-            conn = self._get_connection()
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT pdf_path, pdf_data
+                        FROM policy_ingestions
+                        WHERE policy_id = %s
+                          AND status = 'active'
+                          AND (pdf_path IS NOT NULL OR pdf_data IS NOT NULL)
+                        ORDER BY updated_at DESC, created_at DESC
+                        LIMIT 1;
+                        """,
+                        (policy_id,),
+                    )
+                    row = cur.fetchone()
+            if not row:
+                return None
+            return {
+                "pdf_path": row[0],
+                "pdf_data": _optional_bytes(row[1]),
+            }
+        finally:
+            conn.close()
+
+    def _fetch_policy_document_exact(self, policy_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch an exact-ID row, allowing synchronization errors to propagate."""
+        conn = self._get_connection()
+        try:
             result = None
             with conn:
                 with conn.cursor() as cur:
@@ -641,9 +786,10 @@ class PostgresDBManager:
                         """
                         SELECT policy_id, policy_name, insurer, plan_type, premium, sum_insured, document_text, pdf_path, pdf_data
                         FROM policy_documents
-                        WHERE policy_id = %s OR LOWER(policy_name) LIKE %s;
+                        WHERE policy_id = %s
+                        LIMIT 1;
                         """,
-                        (policy_id, f"%{policy_id.lower()}%"),
+                        (policy_id,),
                     )
                     row = cur.fetchone()
                     if row:
@@ -658,8 +804,22 @@ class PostgresDBManager:
                             "pdf_path": row[7],
                             "pdf_data": bytes(row[8]) if row[8] is not None else None,
                         }
-            conn.close()
             return result
+        finally:
+            conn.close()
+
+    def get_policy_document(self, policy_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieves complete policy document text, raw PDF bytes (BYTEA), and metadata from PostgreSQL `policy_documents`.
+
+        ``policy_id`` is canonical. Policy names are deliberately not accepted
+        as a fallback because marketing names are not guaranteed to be unique.
+        """
+        if not self.enabled:
+            return None
+
+        try:
+            return self._fetch_policy_document_exact(policy_id)
         except Exception as e:
             print(f"[Database Error] Failed to retrieve policy document '{policy_id}': {e}")
             return None
@@ -711,95 +871,137 @@ class PostgresDBManager:
             print(f"[Database Error] Failed to log sent email: {e}")
             return False
 
-    def sync_existing_markdown_documents(self) -> None:
-        """
-        Scans Data/*.md files and policy catalog to populate policy_documents in PostgreSQL.
-        """
-        import os
-        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-        data_dir = os.path.join(base_dir, "Data")
-        catalog_path = os.path.join(base_dir, "recommendation", "policy_catalog.json")
+    def sync_existing_markdown_documents(
+        self,
+        data_dir: Optional[str] = None,
+        catalog_path: Optional[str] = None,
+    ) -> bool:
+        """Synchronize canonical Markdown documents using exact policy IDs.
 
-        if not os.path.exists(catalog_path):
-            return
+        All sources and attachments are validated/read before the first write,
+        so a missing, duplicate, unknown, malformed, or unreadable Markdown
+        file cannot cause a partial filename-based repair. A PDF is accepted
+        only when it has the exact verified Markdown stem or is retained from
+        an active exact-ID ingestion record.
+        """
+        self._verified_policy_document_ids = set()
+
+        import os
+        from pathlib import Path
+
+        from ingestion.source_locator import (
+            MarkdownSourceValidationError,
+            resolve_markdown_policy_sources,
+        )
+
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        resolved_data_dir = Path(data_dir or os.path.join(base_dir, "Data"))
+        resolved_catalog_path = Path(
+            catalog_path or os.path.join(base_dir, "recommendation", "policy_catalog.json")
+        )
+
+        if not resolved_catalog_path.exists():
+            logger.warning(
+                "Skipping Markdown policy synchronization because the catalog is missing",
+                extra={"catalog_path": str(resolved_catalog_path)},
+            )
+            return False
 
         try:
-            with open(catalog_path, "r", encoding="utf-8") as f:
-                catalog = json.load(f)
-        except Exception:
-            return
+            with resolved_catalog_path.open("r", encoding="utf-8") as handle:
+                raw_catalog = json.load(handle)
+            if not isinstance(raw_catalog, list):
+                raise ValueError("Policy catalog root must be a list")
+            catalog = [
+                entry for entry in raw_catalog
+                if isinstance(entry, dict)
+                and entry.get("_ingestion_status", "active") == "active"
+            ]
+            sources = resolve_markdown_policy_sources(resolved_data_dir, catalog)
 
-        for entry in catalog:
-            if entry.get("_ingestion_status", "active") != "active":
-                continue
-            p_id = entry.get("policy_id")
-            p_name = entry.get("policy_name")
-            if not p_id or not p_name:
-                continue
+            # Prepare every desired row before applying the first change.
+            prepared = []
+            for entry in catalog:
+                policy_id = str(entry.get("policy_id") or "").strip()
+                policy_name = str(entry.get("policy_name") or "").strip()
+                if not policy_id or not policy_name:
+                    raise ValueError("Every active catalog entry needs policy_id and policy_name")
 
-            # Check if document and raw PDF binary are already present
-            existing = self.get_policy_document(p_id)
-            if existing and existing.get("document_text") and existing.get("pdf_data"):
-                continue
+                source = sources[policy_id]
+                same_stem_pdf = source.path.with_suffix(".pdf")
+                pdf_bytes = None
+                if same_stem_pdf.is_file():
+                    pdf_bytes = same_stem_pdf.read_bytes()
+                    verified_pdf_path: Optional[str] = str(same_stem_pdf.resolve())
+                else:
+                    verified_pdf = self._get_verified_ingestion_pdf(policy_id)
+                    verified_pdf_path = None
+                    if verified_pdf:
+                        recorded_path = verified_pdf.get("pdf_path")
+                        pdf_bytes = _optional_bytes(verified_pdf.get("pdf_data"))
+                        if recorded_path:
+                            recorded_file = Path(recorded_path)
+                            if pdf_bytes is not None or recorded_file.is_file():
+                                verified_pdf_path = str(recorded_file.resolve())
+                                if pdf_bytes is None:
+                                    pdf_bytes = recorded_file.read_bytes()
 
-
-            # Look for matching .md file in Data directory
-            clean_name = p_name.replace(" ", "_")
-            md_filename = f"{clean_name}_Policy_Document.md"
-            md_path = os.path.join(data_dir, md_filename)
-
-            text_content = ""
-            if os.path.exists(md_path):
-                try:
-                    with open(md_path, "r", encoding="utf-8") as f:
-                        text_content = f.read()
-                except Exception:
-                    text_content = ""
-
-            if not text_content:
-                text_content = (
-                    f"Policy Document: {p_name}\n"
-                    f"Insurer: {entry.get('insurer')}\n"
-                    f"Plan Type: {entry.get('plan_type')}\n"
-                    f"Premium: ₹{entry.get('premium', 0):,.2f}/year\n"
-                    f"Sum Insured: ₹{entry.get('sum_insured', 0):,.2f}\n\n"
-                    f"Coverage Details:\n"
-                    f"- Smoker Allowed: {entry.get('smoker_allowed')}\n"
-                    f"- Diabetes Covered: {entry.get('covers_diabetes')}\n"
-                    f"- Hypertension Covered: {entry.get('covers_hypertension')}\n"
+                existing = self._fetch_policy_document_exact(policy_id)
+                prepared.append(
+                    {
+                        "entry": entry,
+                        "source_text": source.text,
+                        "pdf_path": verified_pdf_path,
+                        "pdf_bytes": pdf_bytes,
+                        "existing": existing,
+                    }
                 )
+        except (MarkdownSourceValidationError, OSError, ValueError, KeyError) as exc:
+            logger.error("Exact-ID Markdown synchronization aborted before writes: %s", exc)
+            return False
+        except Exception:
+            logger.exception("Exact-ID Markdown synchronization preparation failed before writes")
+            return False
 
-            pdf_filename = f"{clean_name}_Policy_Document.pdf"
-            pdf_path = os.path.join(data_dir, pdf_filename)
-            if not os.path.exists(pdf_path):
-                # Search for alternative matching PDF in Data directory
-                for f in os.listdir(data_dir):
-                    if f.endswith(".pdf"):
-                        # Check partial keyword match (e.g. Individual_Health_Shield)
-                        key_part = clean_name.replace("SecureLife_", "").replace("ApexCare_", "").replace("TrustShield_", "")
-                        if key_part in f:
-                            pdf_path = os.path.join(data_dir, f)
-                            break
-                        
-            pdf_bytes = None
-            if pdf_path and os.path.exists(pdf_path):
-                try:
-                    with open(pdf_path, "rb") as f:
-                        pdf_bytes = f.read()
-                except Exception:
-                    pdf_bytes = None
-            else:
-                pdf_path = None
+        verified_policy_ids: set[str] = set()
+        for item in prepared:
+            entry = item["entry"]
+            policy_id = str(entry["policy_id"])
+            if _document_matches_source(
+                item["existing"],
+                entry,
+                item["source_text"],
+                item["pdf_path"],
+                item["pdf_bytes"],
+            ):
+                verified_policy_ids.add(policy_id)
+                continue
 
-
-            self.save_policy_document(
-                policy_id=p_id,
-                policy_name=p_name,
-                document_text=text_content,
+            saved = self.save_policy_document(
+                policy_id=policy_id,
+                policy_name=str(entry["policy_name"]),
+                document_text=item["source_text"],
                 insurer=entry.get("insurer"),
                 plan_type=entry.get("plan_type"),
                 premium=entry.get("premium"),
                 sum_insured=entry.get("sum_insured"),
-                pdf_path=pdf_path,
-                pdf_bytes=pdf_bytes,
+                pdf_path=item["pdf_path"],
+                pdf_bytes=item["pdf_bytes"],
+                replace_pdf=True,
+                backup_id=(
+                    _exact_id_sync_backup_id(policy_id)
+                    if item["existing"] is not None
+                    else None
+                ),
+                backup_reason=f"before exact-ID Markdown synchronization {_EXACT_ID_SYNC_VERSION}",
             )
+            if not saved:
+                logger.error(
+                    "Exact-ID Markdown synchronization could not save policy",
+                    extra={"policy_id": policy_id},
+                )
+            else:
+                verified_policy_ids.add(policy_id)
+
+        self._verified_policy_document_ids = verified_policy_ids
+        return len(verified_policy_ids) == len(prepared)

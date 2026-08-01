@@ -42,6 +42,9 @@ GEMINI_SYSTEM_PROMPT = os.getenv(
 # Minimum FlashRank score accepted as usable policy evidence. Historical
 # irrelevant-query scores in this repository are near zero (~0.0007).
 RAG_MIN_RELEVANCE_SCORE = float(os.getenv("RAG_MIN_RELEVANCE_SCORE", "0.05"))
+# Chroma collection used by retrieval. Candidate indexes can be built under a
+# different name and selected only after they pass validation.
+RAG_COLLECTION_NAME = os.getenv("RAG_COLLECTION_NAME", "insurance_policies")
 
 # --- Cartesia (TTS) -----------------------------------------------------------
 

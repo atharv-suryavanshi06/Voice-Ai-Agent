@@ -34,6 +34,11 @@ from .question_flow import Question, get_next_required_question, is_required_com
 from .state import ConversationState, InvalidStateTransitionError, can_transition
 from . import prompts
 from recommendation.recommendation_engine import RecommendationEngine
+from recommendation.policy_identity import (
+    duplicate_policy_name_keys,
+    PolicyIdentityResolution,
+    PolicyIdentityResolver,
+)
 from rag.models import RetrievedChunk
 
 logger = logging.getLogger(__name__)
@@ -126,8 +131,11 @@ class ConversationManager:
         self.last_recommended_policies: List[Any] = []
         self.active_policy_id: Optional[str] = None
         self.active_policy_name: Optional[str] = None
+        self.active_policy_code: Optional[str] = None
         self.policy_discussion_turns_remaining: int = 0
         self.policy_selection_required: bool = False
+        self.policy_resolution_status: str = "none"
+        self.policy_resolution_candidates: List[Any] = []
         self.last_unrecognized_question: Optional[Question] = None
         self._email_fragment_buffer: str = ""
         self._collecting_email_fragments: bool = False
@@ -249,6 +257,7 @@ class ConversationManager:
         message: str,
         retrieved_chunks: Optional[List[RetrievedChunk]] = None,
         is_policy_question: Optional[bool] = None,
+        retrieval_error: bool = False,
     ) -> str:
         """
         Call once per user turn with the transcribed text. Updates the
@@ -299,7 +308,10 @@ class ConversationManager:
         if self.pending_question:
             self.asked_fields.add(self.pending_question.field_name)
 
-        return self.build_system_prompt(retrieved_chunks=retrieved_chunks)
+        return self.build_system_prompt(
+            retrieved_chunks=retrieved_chunks,
+            retrieval_error=retrieval_error,
+        )
 
     def record_assistant_reply(self, message: str) -> None:
         """Call once per turn with the bot's spoken reply, to keep history accurate."""
@@ -328,7 +340,11 @@ class ConversationManager:
 
     # --- prompt / LLM integration --------------------------------------------
 
-    def build_system_prompt(self, retrieved_chunks: Optional[List[RetrievedChunk]] = None) -> str:
+    def build_system_prompt(
+        self,
+        retrieved_chunks: Optional[List[RetrievedChunk]] = None,
+        retrieval_error: bool = False,
+    ) -> str:
         """Generate the system prompt for the current state and profile."""
         recommendations = None
         if self.state == ConversationState.RECOMMENDING_POLICY:
@@ -339,6 +355,10 @@ class ConversationManager:
             if len(recommendations) == 1:
                 self._set_active_policy(recommendations[0])
 
+        duplicate_policy_names = sorted(
+            duplicate_policy_name_keys(getattr(self.rec_engine, "policies", []))
+        )
+
         return prompts.build_system_prompt(
             state=self.state,
             profile=self.profile,
@@ -348,40 +368,65 @@ class ConversationManager:
             retrieved_chunks=retrieved_chunks,
             email_state=self.email_state.value,
             policy_selection_required=self.policy_selection_required,
-            recommended_policies=self.last_recommended_policies,
+            recommended_policies=(
+                self.policy_resolution_candidates or self.last_recommended_policies
+            ),
             retry_question=self.last_unrecognized_question,
+            retrieval_error=retrieval_error,
+            duplicate_policy_names=duplicate_policy_names,
         )
 
     def _set_active_policy(self, policy: Any) -> None:
         self.active_policy_id = str(policy.policy_id)
         self.active_policy_name = str(policy.policy_name)
+        self.active_policy_code = (
+            str(getattr(policy, "policy_code", "") or "").strip() or None
+        )
+
+    def _clear_active_policy(self) -> None:
+        self.active_policy_id = None
+        self.active_policy_name = None
+        self.active_policy_code = None
+
+    def _resolve_policy_identity(self, message: str) -> PolicyIdentityResolution:
+        catalog = list(getattr(self.rec_engine, "policies", []) or [])
+        # Recent recommendations are normally catalogue objects. Including
+        # them explicitly keeps dependency-injected/test recommendation
+        # engines compatible without weakening ambiguity handling.
+        resolver = PolicyIdentityResolver([*catalog, *self.last_recommended_policies])
+        return resolver.resolve(message, recent_policies=self.last_recommended_policies)
 
     def _resolve_recommended_policy(self, message: str) -> Optional[Any]:
-        """Resolve a named or ordinal reference against the last recommendations."""
-        text = message.lower().strip()
-        ordinal_index = None
-        ordinal_terms = (
-            (0, ("first", "1st", "one")),
-            (1, ("second", "2nd", "two")),
-            (2, ("third", "3rd", "three")),
-        )
-        for index, terms in ordinal_terms:
-            if any(term in text for term in terms):
-                ordinal_index = index
-                break
-        if ordinal_index is not None and ordinal_index < len(self.last_recommended_policies):
-            return self.last_recommended_policies[ordinal_index]
+        """Compatibility wrapper returning only an unambiguous selection."""
+        resolution = self._resolve_policy_identity(message)
+        return resolution.policy if resolution.status == "matched" else None
 
-        for policy in self.last_recommended_policies:
-            name = str(getattr(policy, "policy_name", "")).lower()
-            insurer = str(getattr(policy, "insurer", "")).lower()
-            if name and name in text:
-                return policy
-            # Insurer names provide a useful voice-friendly shorthand.
-            insurer_tokens = [token for token in re.findall(r"[a-z0-9]+", insurer) if len(token) >= 4]
-            if insurer_tokens and any(token in text for token in insurer_tokens):
-                return policy
-        return None
+    def _is_genuine_policy_follow_up(self, message: str) -> bool:
+        if not self.active_policy_id or self.policy_discussion_turns_remaining <= 0:
+            return False
+        text = normalize_stt_aliases(message).lower().strip()
+        words = re.findall(r"[a-z0-9]+", text)
+        if len(words) > 10:
+            return False
+        follow_up_markers = (
+            "it", "its", "this policy", "that policy", "the policy",
+            "what about", "how about", "and ", "also",
+        )
+        specific_terms = _POLICY_DETAIL_TERMS | {
+            "premium", "claim", "coverage", "cover", "deductible", "copay",
+            "co-pay", "waiting period", "network hospital", "rider", "renewal",
+            "cashless", "exclusion", "grace period", "maturity", "nominee",
+            "benefit", "eligibility",
+        }
+        return (
+            any(re.search(rf"\b{re.escape(marker)}\b", text) for marker in follow_up_markers[:2])
+            or any(marker in text for marker in follow_up_markers[2:])
+            or (
+                len(words) <= 5
+                and self._is_question_like(text)
+                and any(term in text for term in specific_terms)
+            )
+        )
 
     def should_retrieve_policy_context(self, message: str) -> bool:
         """Decide whether this turn needs RAG without relying on STT punctuation."""
@@ -395,13 +440,38 @@ class ConversationManager:
     def prepare_policy_context(self, message: str) -> Optional[str]:
         """Resolve the policy scope for a retrieval turn and retain it for follow-ups."""
         self.policy_selection_required = False
+        self.policy_resolution_candidates = []
         message = normalize_stt_aliases(message)
-        selected = self._resolve_recommended_policy(message)
-        if selected is not None:
-            self._set_active_policy(selected)
+        resolution = self._resolve_policy_identity(message)
+        self.policy_resolution_status = resolution.status
+        self.policy_resolution_candidates = list(resolution.candidates)
+
+        if resolution.status == "matched" and resolution.policy is not None:
+            self._set_active_policy(resolution.policy)
+        elif resolution.status == "ambiguous":
+            # An explicit but ambiguous name/code always overrides stale active
+            # context. Asking is safer than silently using the first match.
+            self._clear_active_policy()
+            if self.should_retrieve_policy_context(message):
+                self.policy_selection_required = True
+            logger.info(
+                "Policy identity resolution",
+                extra={
+                    "session_id": self.session_id,
+                    "resolution_status": resolution.status,
+                    "selected_policy_id": None,
+                    "candidate_count": len(resolution.candidates),
+                    "candidate_policy_ids": [
+                        str(getattr(policy, "policy_id", ""))
+                        for policy in resolution.candidates
+                    ],
+                },
+            )
+            return None
 
         text = message.lower().strip()
         is_deictic = any(term in text for term in _POLICY_REFERENCE_TERMS)
+        genuine_follow_up = self._is_genuine_policy_follow_up(message)
         if (
             self.should_retrieve_policy_context(message)
             and self.active_policy_id is None
@@ -409,9 +479,33 @@ class ConversationManager:
             and (is_deictic or any(term in text for term in ("policy number", "policy code", "policy id")))
         ):
             self.policy_selection_required = True
+            self.policy_resolution_status = "ambiguous"
+            self.policy_resolution_candidates = list(self.last_recommended_policies)
+            logger.info(
+                "Policy identity resolution",
+                extra={
+                    "session_id": self.session_id,
+                    "resolution_status": self.policy_resolution_status,
+                    "selected_policy_id": None,
+                    "candidate_count": len(self.policy_resolution_candidates),
+                },
+            )
             return None
 
+        if resolution.status == "none" and not genuine_follow_up:
+            # Do not leak a previous policy scope into a new general question.
+            self._clear_active_policy()
+
         self.policy_discussion_turns_remaining = 2
+        logger.info(
+            "Policy identity resolution",
+            extra={
+                "session_id": self.session_id,
+                "resolution_status": self.policy_resolution_status,
+                "selected_policy_id": self.active_policy_id,
+                "candidate_count": len(self.policy_resolution_candidates),
+            },
+        )
         return self.active_policy_id
 
     def complete_policy_turn(self, was_policy_question: bool) -> None:

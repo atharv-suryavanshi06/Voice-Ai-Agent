@@ -6,7 +6,7 @@ insurance policy used by the recommendation engine.
 """
 
 from dataclasses import dataclass, asdict
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 @dataclass
 class Policy:
@@ -24,6 +24,9 @@ class Policy:
     covers_hypertension: bool
     parents_allowed: bool
     children_allowed: bool
+    # Optional for backward compatibility with catalogs created before product
+    # codes became part of the canonical identity contract.
+    policy_code: Optional[str] = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Policy":
@@ -42,6 +45,11 @@ class Policy:
             covers_hypertension=bool(data.get("covers_hypertension", False)),
             parents_allowed=bool(data.get("parents_allowed", False)),
             children_allowed=bool(data.get("children_allowed", False)),
+            policy_code=(
+                str(data["policy_code"]).strip()
+                if data.get("policy_code") is not None
+                else None
+            ),
         )
 
 

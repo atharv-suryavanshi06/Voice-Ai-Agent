@@ -76,6 +76,10 @@ class PolicyExtractionSchema(BaseModel):
         None,
         description="Unique policy number / identifier as stated in the policy schedule (e.g. ACH/EL/2026/00721904, TSG/HP/2026/00562481). Extract strictly from the document. Do not invent fake IDs."
     )
+    policy_code: Optional[str] = Field(
+        None,
+        description="Product or policy code stated in the document (for example AC/EHP/2026/D2 or SFHS-2026). Keep it distinct from the policy number and do not invent one."
+    )
     policy_name: Optional[str] = Field(
         None,
         description="Exact marketing/commercial name of the insurance policy as stated in the text (e.g. Star Health Assure Individual, ApexCare Elevate Health Plan)."
@@ -158,7 +162,7 @@ def parse_metadata_from_text(text: str) -> PolicyMetadata:
     
     STRICT GROUNDING & ANTI-HALLUCINATION RULES:
     1. Base all extracted fields strictly on the provided text below.
-    2. Do NOT invent, assume, or fabricate any policy details, policy names, policy IDs, or premiums from external knowledge.
+    2. Do NOT invent, assume, or fabricate any policy details, policy names, policy IDs, policy/product codes, or premiums from external knowledge.
     3. If the document is NOT an insurance policy (e.g. invoice, receipt, resume, user manual), set is_insurance_policy to false.
     4. Pay close attention to numerical values:
        - TOTAL PREMIUM: Extract the final total gross premium payable including taxes/GST.
@@ -217,6 +221,10 @@ def parse_metadata_from_text(text: str) -> PolicyMetadata:
         covers_diabetes=bool(data.get("covers_diabetes", False)),
         covers_hypertension=bool(data.get("covers_hypertension", False)),
         parents_allowed=bool(data.get("parents_allowed", False)),
-        children_allowed=bool(data.get("children_allowed", False))
+        children_allowed=bool(data.get("children_allowed", False)),
+        policy_code=(
+            str(data["policy_code"]).strip()
+            if data.get("policy_code") is not None
+            else None
+        ),
     )
-
