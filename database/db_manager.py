@@ -328,11 +328,19 @@ class PostgresDBManager:
         profile_dict: Dict[str, Any],
         conversation_history: Optional[list] = None,
     ) -> bool:
-        """Compatibility API that now appends messages instead of rewriting JSONB."""
+        """Save a profile, its full JSON history, and idempotent message rows."""
         messages = []
+        history_for_profile = []
         for index, message in enumerate(conversation_history or [], 1):
             if not isinstance(message, dict):
                 continue
+            # Keep the profile JSONB representation intentionally small and in
+            # the public format: an ordered list of role/content objects.
+            # Message identifiers and metadata stay in conversation_messages.
+            history_for_profile.append({
+                "role": str(message.get("role", "unknown")),
+                "content": str(message.get("content", "")),
+            })
             messages.append({
                 "message_id": message.get("message_id") or f"{session_id}:{index}",
                 "sequence": int(message.get("sequence") or index),
@@ -340,15 +348,25 @@ class PostgresDBManager:
                 "content": str(message.get("content", "")),
                 "metadata": message.get("metadata") or {},
             })
-        return self.persist_conversation_update(session_id, profile_dict, messages)
+        return self.persist_conversation_update(
+            session_id,
+            profile_dict,
+            messages,
+            conversation_history=(history_for_profile if conversation_history is not None else None),
+        )
 
     def persist_conversation_update(
         self,
         session_id: str,
         profile_dict: Dict[str, Any],
         messages: Optional[List[Dict[str, Any]]] = None,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
     ) -> bool:
-        """Atomically upsert a profile and append idempotent ordered messages."""
+        """Atomically upsert a profile and append idempotent ordered messages.
+
+        ``conversation_history`` is supplied only by the final full-session
+        save. Incremental writes retain the previously stored JSON history.
+        """
         if not self.enabled:
             return False
         try:
@@ -357,13 +375,23 @@ class PostgresDBManager:
                 with conn.cursor() as cur:
                     cur.execute(
                         """
-                        INSERT INTO customer_profiles (session_id, profile_data, updated_at)
-                        VALUES (%s, %s, CURRENT_TIMESTAMP)
+                        INSERT INTO customer_profiles
+                            (session_id, profile_data, conversation_history, updated_at)
+                        VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
                         ON CONFLICT (session_id) DO UPDATE SET
                             profile_data = EXCLUDED.profile_data,
+                            conversation_history = CASE
+                                WHEN %s THEN EXCLUDED.conversation_history
+                                ELSE customer_profiles.conversation_history
+                            END,
                             updated_at = CURRENT_TIMESTAMP;
                         """,
-                        (session_id, Json(profile_dict)),
+                        (
+                            session_id,
+                            Json(profile_dict),
+                            Json(conversation_history or []),
+                            conversation_history is not None,
+                        ),
                     )
                     cur.execute(
                         """

@@ -78,5 +78,50 @@ class BackgroundWorkerTests(unittest.TestCase):
         self.assertEqual(failures, ["RuntimeError"])
 
 
+class ConversationShutdownPersistenceTests(unittest.TestCase):
+    def test_shutdown_saves_complete_history_after_flushing_incremental_jobs(self):
+        class FakeDatabase:
+            enabled = True
+
+            def __init__(self):
+                self.incremental_messages = []
+                self.full_history = None
+                self.ended_session = None
+
+            def persist_conversation_update(self, _session_id, _profile, messages):
+                self.incremental_messages.extend(messages)
+                return True
+
+            def save_profile(self, _session_id, _profile, history):
+                self.full_history = history
+                return True
+
+            def end_conversation_session(self, session_id, status):
+                self.ended_session = (session_id, status)
+                return True
+
+        async def scenario():
+            manager = ConversationManager(session_id="shutdown-history")
+            manager.process_user_message("hello")
+            manager.record_assistant_reply("hi there")
+            database = FakeDatabase()
+            processor = ConversationManagerProcessor(
+                manager,
+                SimpleNamespace(),
+                SimpleNamespace(),
+                db_manager=database,
+            )
+
+            await processor.aclose()
+
+            self.assertEqual(
+                database.full_history,
+                [{"role": "user", "content": "hello"}, {"role": "assistant", "content": "hi there"}],
+            )
+            self.assertEqual(database.ended_session, ("shutdown-history", "completed"))
+
+        asyncio.run(scenario())
+
+
 if __name__ == "__main__":
     unittest.main()

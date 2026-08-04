@@ -40,12 +40,12 @@ class Question:
 
 
 REQUIRED_QUESTIONS: List[Question] = [
+    Question("name", "name", "Ask the caller for their name if not already provided."),
     Question("age", "age", "Ask their exact age in years - needed to check policy eligibility."),
     Question("family_members", "plan type and family size", "Ask whether they are looking for an individual plan or a family floater plan. If they say a family floater plan, ask how many family members they would like to cover."),
     Question("smoker", "smoking / tobacco habit", "Ask whether they smoke or use tobacco - it affects premium and eligibility."),
     Question("budget", "budget", "Ask what annual premium budget they have in mind."),
     Question("coverage_required", "coverage amount", "Ask what sum insured or coverage amount they're looking for, if they have a figure in mind."),
-    
 ]
 
 OPTIONAL_QUESTIONS: List[Question] = [

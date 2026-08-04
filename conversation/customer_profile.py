@@ -59,12 +59,24 @@ _KNOWN_INSURERS = [
 
 _AMOUNT_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(lakh|lakhs|crore|crores|k|thousand)?")
 _NUMBER_RE = re.compile(r"\b(\d{1,3})\b")
-_NAME_TRIGGER_RE = re.compile(r"(?i)(?:my name is|my name's|i am|i'm|this is|call me)\s+([a-zA-Z ]+)")
+_NAME_TRIGGER_RE = re.compile(
+    r"(?i)(?:my name is|my name's|i am|i'm|this is|call me|change my name to|update my name to|set my name to|change name to|update name to|name is|name to)\s+([a-zA-Z ]+)"
+)
 _GREETING_PREFIX_RE = re.compile(r"(?i)^(hi|hello|hey)[,! ]*")
 _NAME_FILLER_WORDS = {"my", "name", "is", "i", "am", "this", "hi", "hello", "hey", "call", "me"}
 _NAME_NON_ANSWERS = {
     "can", "could", "would", "please", "repeat", "again", "sorry", "what", "why", "how",
     "yes", "no", "okay", "ok", "thanks", "thank", "you", "hear", "understand",
+    "years", "year", "old", "yr", "yrs", "age", "aged",
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+    "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen",
+    "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "hundred", "thousand", "lakh", "lakhs", "crore", "crores",
+    "male", "female", "man", "woman", "boy", "girl",
+    "single", "married", "divorced", "widowed",
+    "smoker", "tobacco", "smoke", "smoking",
+    "floater", "individual", "family", "members", "member", "parents", "children",
+    "budget", "premium", "coverage", "cover", "policy", "insurance", "plan",
+    "looking", "want", "need", "have", "dont", "do", "not", "actually"
 }
 _CITY_FILLER_RE = re.compile(r"(?i)\b(i live in|i'm from|i am from|it'?s|from)\b")
 _OCCUPATION_FILLER_RE = re.compile(r"(?i)\b(i work as|i am an?|i'm an?)\b")
@@ -75,12 +87,26 @@ def _tokenize(text: str) -> Set[str]:
 
 
 def _parse_name(text: str) -> Optional[str]:
+    # Handle explicit refusals to state a name so the conversation can proceed cleanly
+    text_l = text.lower().strip()
+    refusal_words = {"no name", "anonymous", "skip", "don't want to say", "dont want to say", "prefer not to say", "dont tell", "don't tell"}
+    if any(w in text_l for w in refusal_words):
+        return "Customer"
+
+    # Reject if text contains digits or explicit age markers like 'years old'
+    if re.search(r"\b\d+\b", text) or re.search(r"\b(years|year|yr|yrs)\s+old\b", text, re.I):
+        return None
+
     # 1. Direct trigger match
     match = _NAME_TRIGGER_RE.search(text)
     if match:
         candidate = match.group(1).strip(" .,!")
         words = [w for w in candidate.split() if w.lower() not in _NAME_FILLER_WORDS]
-        if words and all(w.isalpha() for w in words):
+        if (
+            words
+            and all(w.isalpha() for w in words)
+            and not any(w.lower() in _NAME_NON_ANSWERS for w in words)
+        ):
             return " ".join(words).title()
 
     # 2. Fallback: strip greeting and filler words
@@ -355,6 +381,69 @@ def _parse_email(text: str) -> Optional[str]:
 
 
 
+_BUDGET_KEYWORDS = {"budget", "premium", "spend", "pay", "cost", "afford", "annual budget", "yearly budget"}
+_COVERAGE_KEYWORDS = {"coverage", "cover", "sum insured", "sum assure", "sum assured", "lakh", "lakhs", "crore", "crores"}
+_INCOME_KEYWORDS = {"income", "salary", "earn", "earning", "annual income", "per year income"}
+
+
+def _parse_budget(text: str) -> Optional[float]:
+    text_l = text.lower()
+    has_budget_kw = any(kw in text_l for kw in _BUDGET_KEYWORDS)
+    has_coverage_kw = any(kw in text_l for kw in _COVERAGE_KEYWORDS)
+    
+    # If the text explicitly mentions coverage keywords (like "coverage", "sum insured", "lakh")
+    # and does NOT mention budget keywords, this amount belongs to coverage, not budget.
+    if has_coverage_kw and not has_budget_kw:
+        return None
+        
+    return _parse_amount(text)
+
+
+def _parse_coverage_required(text: str) -> Optional[float]:
+    text_l = text.lower()
+    has_budget_kw = any(kw in text_l for kw in _BUDGET_KEYWORDS)
+    has_coverage_kw = any(kw in text_l for kw in _COVERAGE_KEYWORDS)
+    
+    # If the text explicitly mentions budget keywords (like "budget", "premium")
+    # and does NOT mention coverage keywords, this amount belongs to budget, not coverage.
+    if has_budget_kw and not has_coverage_kw:
+        return None
+        
+    return _parse_amount(text)
+
+
+def _parse_annual_income(text: str) -> Optional[float]:
+    text_l = text.lower()
+    has_income_kw = any(kw in text_l for kw in _INCOME_KEYWORDS)
+    has_budget_kw = any(kw in text_l for kw in _BUDGET_KEYWORDS)
+    has_coverage_kw = any(kw in text_l for kw in _COVERAGE_KEYWORDS)
+    
+    if (has_budget_kw or has_coverage_kw) and not has_income_kw:
+        return None
+        
+    return _parse_amount(text)
+
+
+_SMOKER_KEYWORDS = {"smoke", "smoker", "smoking", "tobacco", "cigarette", "cigar", "nicotine"}
+
+
+def _parse_smoker(text: str) -> Optional[bool]:
+    text_l = text.lower().strip()
+    tokens = _tokenize(text_l)
+    has_smoker_kw = bool(tokens & _SMOKER_KEYWORDS or any(kw in text_l for kw in _SMOKER_KEYWORDS))
+    
+    # Non-smoker topic keywords that indicate the user is answering a different question
+    non_smoker_topic_kws = {"name", "call me", "this is", "years old", "year old", "budget", "coverage", "lakh", "crore", "floater", "individual"}
+    has_other_topic = any(kw in text_l for kw in non_smoker_topic_kws)
+    
+    # If the user is speaking about another topic (like their name or age) and does NOT mention smoking/tobacco keywords,
+    # reject parsing yes/no to prevent accidental smoker assignment.
+    if has_other_topic and not has_smoker_kw:
+        return None
+        
+    return _parse_yes_no(text)
+
+
 # Maps a CustomerProfile field name to the parser used to extract it from
 # the caller's raw (transcribed) text.
 _PARSERS: Dict[str, Callable[[str], Any]] = {
@@ -364,15 +453,15 @@ _PARSERS: Dict[str, Callable[[str], Any]] = {
     "city": _parse_city,
     "marital_status": _parse_marital_status,
     "occupation": _parse_occupation,
-    "annual_income": _parse_amount,
+    "annual_income": _parse_annual_income,
     "family_members": _parse_family_members,
     "parents_included": _parse_yes_no,
     "children_included": _parse_yes_no,
     "existing_diseases": _parse_diseases,
-    "smoker": _parse_yes_no,
+    "smoker": _parse_smoker,
     "current_insurance": _parse_insurer,
-    "budget": _parse_amount,
-    "coverage_required": _parse_amount,
+    "budget": _parse_budget,
+    "coverage_required": _parse_coverage_required,
     "preferred_insurer": _parse_insurer,
     "email": _parse_email,
 }

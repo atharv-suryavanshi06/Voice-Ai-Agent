@@ -159,16 +159,49 @@ def _policy_service_unavailable_instructions(next_question: Optional[Question]) 
 
 
 def _recommending_policy_instructions(
+    profile: Optional[CustomerProfile] = None,
     recommendations: Optional[List[Any]] = None,
     duplicate_policy_names: Optional[List[str]] = None,
 ) -> str:
+    name_part = profile.name if (profile and profile.name) else "Valued Customer"
+    age_part = f"{profile.age} years old" if (profile and profile.age is not None) else "your age"
+    
+    is_family = False
+    if profile:
+        is_family = (
+            (profile.family_members is not None and profile.family_members > 1)
+            or profile.parents_included is True
+            or profile.children_included is True
+        )
+    plan_type_part = "a family floater plan" if is_family else "an individual plan"
+    
+    budget_part = (
+        format_indian_currency_for_speech(profile.budget)
+        if (profile and profile.budget is not None)
+        else "your budget"
+    )
+    coverage_part = (
+        format_indian_currency_for_speech(profile.coverage_required)
+        if (profile and profile.coverage_required is not None)
+        else "your desired coverage"
+    )
+
+    recap_example = (
+        f"{name_part}, you are {age_part} looking for {plan_type_part} with a budget of "
+        f"{budget_part} and looking for {coverage_part} coverage."
+    )
+
     if not recommendations:
         return (
-            "All questions have been answered and you now have all customer details.\n"
-            "CRITICAL DIRECTIVE: You MUST directly state and suggest policy recommendations right NOW in this turn!\n"
-            "Do NOT ask the customer if they want recommendations, do NOT say 'I will look up policies', and do NOT tell them you will get back to them later.\n"
-            "In 2-3 spoken sentences, briefly summarize their needs and directly suggest the general type of plan that fits them "
-            "(for example a family floater health plan or an individual plan) along with a ballpark coverage amount and estimated premium range."
+            "CRITICAL DIRECTIVE - NO MATCHING POLICY IN CATALOG:\n"
+            f"All customer details have been gathered. You MUST start your response by repeating all user details in this exact sentence structure:\n"
+            f"\"{recap_example}\"\n\n"
+            "HOWEVER, no matching insurance policy for their specific age, plan type, or criteria was found in our policy catalog.\n"
+            "STRICTLY FORBIDDEN: Do NOT hallucinate, invent, or suggest any fake insurance policies, ballpark prices, or external plans.\n"
+            "WHAT YOU MUST SAY:\n"
+            "After repeating their details in the exact recap sentence above, directly and politely inform the caller: "
+            "'However, an insurance policy matching your age and requirements is not currently available in our policy catalog.'\n"
+            "Keep the response short, warm, and conversational in 2-3 sentences."
         )
     
     policy_lines = []
@@ -183,22 +216,22 @@ def _recommending_policy_instructions(
     policy_list_str = "\n".join(policy_lines)
 
     return (
-        "CRITICAL DIRECTIVE: All customer information has been collected. You MUST directly and immediately suggest the policy options below right NOW in this response.\n"
+        "CRITICAL DIRECTIVE - POLICY RECOMMENDATIONS & MANDATORY RECAP:\n"
+        "All customer details have been gathered. You MUST start your response by repeating all user details in this exact sentence structure:\n"
+        f"\"{recap_example} Here are some options:\"\n\n"
         "STRICTLY FORBIDDEN:\n"
-        "- Do NOT ask 'Would you like me to recommend policies?' or 'Do you want me to suggest policies?'\n"
-        "- Do NOT say 'I will look up the policies and let you know' or 'I will check policies for you'.\n"
-        "- Do NOT ask any more profile questions or stall.\n\n"
+        "- Do NOT ask 'Would you like me to recommend policies?' or stall.\n"
+        "- Do NOT say 'I will look up policies' or 'I will check policies for you'.\n"
+        "- Do NOT omit the opening recap sentence repeating their details.\n\n"
         "WHAT YOU MUST DO RIGHT NOW:\n"
-        "Summarize their profile details and directly state the specific recommended policies from our catalog:\n"
+        "1. Open with the exact profile recap sentence above.\n"
+        "2. Directly state the specific recommended policies from our catalog:\n"
         f"{policy_list_str}\n\n"
         "CRITICAL EMAIL DIRECTIVE:\n"
         "- Email delivery is available only after the caller provides and confirms an address.\n"
-        "- Do not claim delivery until the delivery state below says it succeeded.\n"
         "- Ask the caller for their email address so the system can attempt to send the complete policy document: "
         "'Please tell me your email address so I can send you the complete policy details and document.'"
     )
-
-
 
 
 def _email_delivery_instructions(email_state: str) -> str:
@@ -284,7 +317,7 @@ def build_system_prompt(
         sections.append(_repeat_question_instructions(retry_question))
     elif state == ConversationState.RECOMMENDING_POLICY:
         sections.append(
-            _recommending_policy_instructions(recommendations, duplicate_policy_names)
+            _recommending_policy_instructions(profile, recommendations, duplicate_policy_names)
         )
     else:
         instruction_builder = _STATE_INSTRUCTION_BUILDERS[state]

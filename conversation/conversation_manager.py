@@ -249,6 +249,9 @@ class ConversationManager:
     def start_conversation(self) -> str:
         """Call once, before the first LLM turn, to get the opening system prompt."""
         self.state = ConversationState.GREETING
+        self.pending_question = get_next_required_question(self.profile)
+        if self.pending_question:
+            self.asked_fields.add(self.pending_question.field_name)
         prompt = self.build_system_prompt()
         return prompt
 
@@ -290,7 +293,7 @@ class ConversationManager:
         else:
             self.last_unrecognized_question = None
 
-        if self.is_profile_complete():
+        if self.is_profile_complete() or self._has_age_disqualification():
             if not self.recommendation_delivered:
                 self.recommendation_delivered = True
                 self.transition_state(ConversationState.RECOMMENDING_POLICY)
@@ -304,7 +307,10 @@ class ConversationManager:
             else:
                 self._advance_state(message)
 
-        self.pending_question = get_next_required_question(self.profile)
+        if self._has_age_disqualification():
+            self.pending_question = None
+        else:
+            self.pending_question = get_next_required_question(self.profile)
         if self.pending_question:
             self.asked_fields.add(self.pending_question.field_name)
 
@@ -317,6 +323,57 @@ class ConversationManager:
         """Call once per turn with the bot's spoken reply, to keep history accurate."""
         self._append_history_message("assistant", message)
 
+
+    def get_session_memory(self) -> Dict[str, Any]:
+        """Return structured session memory payload for live dashboard rendering."""
+        profile = self.profile
+        
+        # Plan Type determination
+        plan_type = "Not specified"
+        if (profile.family_members is not None and profile.family_members > 1) or profile.parents_included is True or profile.children_included is True:
+            plan_type = "Family Plan"
+        elif profile.family_members == 1:
+            plan_type = "Individual Plan"
+
+        # Smoker status
+        smoker_status = "Not specified"
+        if profile.smoker is True:
+            smoker_status = "Yes"
+        elif profile.smoker is False:
+            smoker_status = "No"
+
+        # Premium (Budget)
+        premium_str = "Not specified"
+        if profile.budget is not None and profile.budget > 0:
+            premium_str = f"₹{int(profile.budget):,}/yr"
+
+        # Sum Insured (Coverage Required)
+        sum_insured_str = "Not specified"
+        if profile.coverage_required is not None and profile.coverage_required > 0:
+            val = profile.coverage_required
+            if val >= 10000000:
+                sum_insured_str = f"₹{val/10000000:.2f} Cr".replace(".00", "")
+            elif val >= 100000:
+                sum_insured_str = f"₹{val/100000:.1f} Lakhs".replace(".0 Lakhs", " Lakhs")
+            else:
+                sum_insured_str = f"₹{int(val):,}"
+
+        return {
+            "session_id": self.session_id,
+            "name": profile.name or "Not specified",
+            "age": profile.age if profile.age is not None else "Not specified",
+            "smoker": smoker_status,
+            "plan_type": plan_type,
+            "premium": premium_str,
+            "sum_insured": sum_insured_str,
+            "gender": profile.gender or "Not specified",
+            "city": profile.city or "Not specified",
+            "existing_diseases": profile.existing_diseases if profile.existing_diseases is not None else [],
+            "email": profile.email if (profile.email and profile.email_confirmed) else ("Pending confirmation" if profile.pending_email else "Not specified"),
+            "state": self.state.value,
+            "is_complete": self.is_profile_complete(),
+            "raw_profile": profile.to_dict(),
+        }
 
     # --- profile / question flow --------------------------------------------
 
@@ -538,6 +595,20 @@ class ConversationManager:
             raise InvalidStateTransitionError(f"Cannot go from {self.state} to {new_state}")
         self.state = new_state
 
+    def _has_age_disqualification(self) -> bool:
+        """True if the caller's age cannot be covered by any policy in our catalog."""
+        if self.profile.age is None:
+            return False
+        catalog = getattr(self.rec_engine, "policies", [])
+        if not catalog:
+            return False
+        for p in catalog:
+            min_age = p.min_age if p.min_age is not None else 0
+            max_age = p.max_age if p.max_age is not None else 99
+            if min_age <= self.profile.age <= max_age:
+                return False  # Found at least one policy accepting this age
+        return True  # No policy in catalog accepts this age
+
     def _advance_state(self, message: str) -> None:
         """
         Recompute the 'real' state from current progress. Used whenever the
@@ -552,7 +623,7 @@ class ConversationManager:
             self.transition_state(ConversationState.ENDING_CALL)
             return
 
-        if self.is_profile_complete():
+        if self.is_profile_complete() or self._has_age_disqualification():
             self.recommendation_delivered = True
             self.transition_state(ConversationState.RECOMMENDING_POLICY)
         else:
@@ -607,7 +678,12 @@ class ConversationManager:
             extracted_pending = self.profile.apply_raw_answer(pending_field, message)
             if extracted_pending:
                 updated_fields.add(pending_field)
-        elif self.state == ConversationState.GREETING:
+        name_kws = ["name", "call me", "this is"]
+        is_name_mentioned = (
+            (self.state == ConversationState.GREETING and not self.profile.is_filled("name"))
+            or any(kw in msg_lower for kw in name_kws)
+        )
+        if is_name_mentioned:
             if self.profile.apply_raw_answer("name", message):
                 updated_fields.add("name")
 
@@ -617,6 +693,25 @@ class ConversationManager:
                 continue
             if field_name == pending_field and extracted_pending:
                 continue
+
+            # If a monetary field was already extracted for pending_field, do not opportunistically
+            # extract another monetary field from the same utterance unless it is explicitly mentioned.
+            monetary_fields = {"budget", "coverage_required", "annual_income"}
+            if (
+                extracted_pending
+                and pending_field in monetary_fields
+                and field_name in monetary_fields
+            ):
+                kws = _FIELD_KEYWORDS.get(field_name, [field_name, q.topic])
+                if not any(kw in msg_lower for kw in kws):
+                    continue
+
+            # Do NOT opportunistically extract 'smoker' unless 'smoker' is the pending_question
+            # OR explicit smoking keywords are present in the user message.
+            if field_name == "smoker" and pending_field != "smoker":
+                smoker_kws = _FIELD_KEYWORDS.get("smoker", ["smoke", "smoker", "smoking", "tobacco"])
+                if not any(kw in msg_lower for kw in smoker_kws):
+                    continue
 
             kws = _FIELD_KEYWORDS.get(field_name, [field_name, q.topic])
             is_explicit_mention = any(kw in msg_lower for kw in kws)

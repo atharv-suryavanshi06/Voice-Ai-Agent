@@ -31,6 +31,26 @@ class ConversationPersistenceTests(unittest.TestCase):
         manager = ConversationManager(session_id="disabled-db")
         self.assertFalse(manager.save_to_db(None))
 
+    def test_full_save_uses_an_ordered_role_content_history(self):
+        class FakeDatabase:
+            def save_profile(self, session_id, profile, history):
+                self.session_id = session_id
+                self.profile = profile
+                self.history = history
+                return True
+
+        manager = ConversationManager(session_id="full-history")
+        manager.process_user_message("hello")
+        manager.record_assistant_reply("hi there")
+        database = FakeDatabase()
+
+        self.assertTrue(manager.save_to_db(database))
+        self.assertEqual(database.session_id, "full-history")
+        self.assertEqual(
+            database.history,
+            [{"role": "user", "content": "hello"}, {"role": "assistant", "content": "hi there"}],
+        )
+
 
 class LifecycleTests(unittest.TestCase):
     def test_lifecycle_globals_are_initialized_at_module_scope(self):

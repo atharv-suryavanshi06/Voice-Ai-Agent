@@ -1,4 +1,25 @@
-# Voice AI Agent Sequential Flowchart
+flowchart TD
+
+    Start["Call Starts: Agent Greets User"]
+    Start --> AskQ["Agent Asks Required Profile Questions (Age, Budget, Diseases, etc.)"]
+    AskQ --> UserAnswer["User Speaks Answers (STT: Deepgram)"]
+    UserAnswer --> UpdateProfile["Update Profile & Check Missing Fields"]
+    UpdateProfile -->|Profile Incomplete| AskQ
+
+    UpdateProfile -->|Profile Complete| MatchEngine["Filter & Score Policies from JSON Catalog"]
+    MatchEngine --> RecPolicy["Agent Recommends Best Matching Policies (Gemini + Cartesia)"]
+
+    RecPolicy --> SendMail["Send Recommended Policy Details via Email"]
+
+    RecPolicy --> UserQ["User Asks Detailed Policy Question"]
+    UserQ --> STT2["Speech-to-Text (Deepgram)"]
+    STT2 --> RAG["Hybrid Retrieval"]
+    RAG --> Reranker["Re-Rank Best Document Chunks"]
+    Reranker --> Prompt["Inject Policy Context into Prompt"]
+    Prompt --> LLM["Gemini Generates Grounded Answer"]
+    LLM --> TTS["Cartesia Text-to-Speech"]
+    TTS --> Speaker["Speaker Output"]
+    Speaker -->|Next Question| UserQ# Voice AI Agent Sequential Flowchart
 
 A simple high-level overview showing the 3 sequential phases of the call:
 1. **Information Collection** (Asking profile questions)
@@ -39,4 +60,4 @@ flowchart TD
     style Phase3 fill:#fff3e0,stroke:#e65100,color:#000
     style LLM fill:#f3e5f5,stroke:#4a148c,color:#000
     style Speaker fill:#e1f5ff,stroke:#01579b,color:#000
-```
+```  

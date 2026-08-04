@@ -199,6 +199,18 @@ class ConversationManagerProcessor(FrameProcessor):
         if self._manager.pending_persistence_messages():
             self._queue_persistence()
             await self._background_worker.flush(timeout=10.0)
+        # The normal path writes messages incrementally so it never delays a
+        # spoken response.  At shutdown, also invoke the existing full-history
+        # save path: it is idempotent and covers a final turn that may have been
+        # interrupted before its background job was accepted or completed.
+        if self._db_manager and getattr(self._db_manager, "enabled", False):
+            try:
+                await asyncio.to_thread(self._manager.save_to_db, self._db_manager)
+            except Exception:
+                logger.exception(
+                    "Failed to persist complete conversation during shutdown",
+                    extra={"session_id": self._manager.session_id},
+                )
         if self._db_manager and getattr(self._db_manager, "enabled", False):
             self._background_worker.submit(BackgroundJob(
                 operation="end_conversation_session",
@@ -273,6 +285,7 @@ class ConversationManagerProcessor(FrameProcessor):
                     system_prompt = self._manager.start_conversation()
                     retrieved_chunks = None
                     self._is_first_turn = False
+                    live_event_hub.publish_session(self._manager.get_session_memory())
                 else:
                     is_policy_q = self._manager.should_retrieve_policy_context(last_user_msg)
                     retrieved_chunks = None
@@ -324,6 +337,8 @@ class ConversationManagerProcessor(FrameProcessor):
                             retrieved_chunks=retrieved_chunks,
                             retrieval_error=retrieval_error,
                         )
+
+                    live_event_hub.publish_session(self._manager.get_session_memory())
 
                 self._last_system_prompt = system_prompt
                 self._last_retrieved_chunks = retrieved_chunks

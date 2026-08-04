@@ -83,7 +83,7 @@ h2 { font-size: 20px; letter-spacing: -0.035em; }
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 315px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 320px) minmax(240px, 270px);
   min-height: 690px;
   overflow: hidden;
   border: 1px solid #e7e4ee;
@@ -245,12 +245,166 @@ h2 { font-size: 20px; letter-spacing: -0.035em; }
 
 .privacy-note span { color: #7764dd; font-size: 17px; line-height: 11px; }
 
+/* --- Session Memory Panel --- */
+.session-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 26px 20px 20px;
+  border-left: 1px solid #eeeaf3;
+  background: #faf9fd;
+}
+
+.session-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #eeeaf3;
+}
+
+.completion-badge {
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.completion-badge.complete {
+  color: #15803d;
+  background: #dcfce7;
+  border: 1px solid #bbf7d0;
+}
+
+.completion-badge.pending {
+  color: #b45309;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+}
+
+.session-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.session-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 11px 12px;
+  border: 1px solid #e8e4f2;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(118, 96, 218, 0.04);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.session-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(118, 96, 218, 0.08);
+}
+
+.card-label {
+  color: #8c859c;
+  font-size: 9.5px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+}
+
+.card-value {
+  color: #2c283b;
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.highlight-value {
+  color: #6346e2;
+  font-weight: 700;
+}
+
+.badge-pill {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  width: fit-content;
+}
+
+.badge-success {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.badge-warn {
+  color: #9a3412;
+  background: #ffedd5;
+}
+
+.badge-primary {
+  color: #4338ca;
+  background: #e0e7ff;
+}
+
+.badge-muted {
+  color: #6b7280;
+  background: #f3f4f6;
+}
+
+.session-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid #eeeaf3;
+  margin-top: auto;
+}
+
+.detail-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.detail-row span {
+  color: #928c9e;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.detail-row strong {
+  color: #433e54;
+  font-size: 12px;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.email-value {
+  color: #6d53e8 !important;
+}
+
+@media (max-width: 1024px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
+  .session-panel {
+    border-top: 1px solid #eeeaf3;
+    border-left: 0;
+  }
+}
+
 @media (max-width: 780px) {
   .app-shell { padding: 14px; }
   .workspace { grid-template-columns: 1fr; min-height: auto; border-radius: 18px; }
   .conversation-panel { padding: 20px; }
   .messages { min-height: 410px; max-height: 58svh; }
-  .activity-panel { min-height: 250px; border-top: 1px solid #eeeaf3; border-left: 0; }
+  .session-panel, .activity-panel { min-height: 200px; border-top: 1px solid #eeeaf3; border-left: 0; }
   .activity-list { max-height: 180px; }
 }
 

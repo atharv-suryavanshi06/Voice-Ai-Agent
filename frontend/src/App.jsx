@@ -23,6 +23,7 @@ function App() {
   const [connection, setConnection] = useState('connecting')
   const [messages, setMessages] = useState([])
   const [activities, setActivities] = useState([])
+  const [sessionMemory, setSessionMemory] = useState(null)
 
   const currentActivity = activities[0] || {
     label: connection === 'connected' ? 'Listening' : 'Waiting for backend',
@@ -59,6 +60,10 @@ function App() {
 
         if (payload.type === 'activity') {
           setActivities((current) => [payload, ...current].slice(0, MAX_ACTIVITIES))
+        }
+
+        if (payload.type === 'session' && payload.session) {
+          setSessionMemory(payload.session)
         }
       }
 
@@ -135,6 +140,76 @@ function App() {
             <div>
               <strong>{currentActivity.label}</strong>
               <span>{currentActivity.detail}</span>
+            </div>
+          </div>
+        </section>
+
+        <section className="session-panel" aria-label="Session Memory">
+          <div className="session-heading">
+            <div>
+              <p className="eyebrow">SESSION MEMORY</p>
+              <h2>Caller Profile</h2>
+            </div>
+            <span className={`completion-badge ${sessionMemory?.is_complete ? 'complete' : 'pending'}`}>
+              {sessionMemory?.is_complete ? 'Complete' : 'In Progress'}
+            </span>
+          </div>
+
+          <div className="session-grid">
+            <div className="session-card">
+              <span className="card-label">NAME</span>
+              <strong className="card-value">{sessionMemory?.name || 'Not specified'}</strong>
+            </div>
+
+            <div className="session-card">
+              <span className="card-label">AGE</span>
+              <strong className="card-value">{sessionMemory?.age !== undefined && sessionMemory?.age !== 'Not specified' ? sessionMemory.age : 'Not specified'}</strong>
+            </div>
+
+            <div className="session-card">
+              <span className="card-label">SMOKER</span>
+              <strong className={`card-value badge-pill ${sessionMemory?.smoker === 'Yes' ? 'badge-warn' : sessionMemory?.smoker === 'No' ? 'badge-success' : 'badge-muted'}`}>
+                {sessionMemory?.smoker || 'Not specified'}
+              </strong>
+            </div>
+
+            <div className="session-card">
+              <span className="card-label">PLAN TYPE</span>
+              <strong className={`card-value badge-pill ${sessionMemory?.plan_type && sessionMemory.plan_type !== 'Not specified' ? 'badge-primary' : 'badge-muted'}`}>
+                {sessionMemory?.plan_type || 'Not specified'}
+              </strong>
+            </div>
+
+            <div className="session-card">
+              <span className="card-label">PREMIUM (BUDGET)</span>
+              <strong className="card-value highlight-value">{sessionMemory?.premium || 'Not specified'}</strong>
+            </div>
+
+            <div className="session-card">
+              <span className="card-label">SUM INSURED</span>
+              <strong className="card-value highlight-value">{sessionMemory?.sum_insured || 'Not specified'}</strong>
+            </div>
+          </div>
+
+          <div className="session-details">
+            <div className="detail-row">
+              <span>City / Gender</span>
+              <strong>
+                {sessionMemory?.city && sessionMemory.city !== 'Not specified' ? sessionMemory.city : '—'}
+                {sessionMemory?.gender && sessionMemory.gender !== 'Not specified' ? ` (${sessionMemory.gender})` : ''}
+              </strong>
+            </div>
+            <div className="detail-row">
+              <span>Pre-existing Conditions</span>
+              <strong>
+                {sessionMemory?.existing_diseases && sessionMemory.existing_diseases.length > 0
+                  ? sessionMemory.existing_diseases.join(', ')
+                  : 'None reported'}
+              </strong>
+            </div>
+            <div className="detail-row">
+              <span>Email Address</span>
+              <strong className="email-value">{sessionMemory?.email || 'Not specified'}</strong>
             </div>
           </div>
         </section>

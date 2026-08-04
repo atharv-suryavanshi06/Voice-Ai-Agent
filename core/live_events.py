@@ -51,6 +51,11 @@ class LiveEventHub:
         self._current_activity = activity_key
         self.publish("activity", label=label, detail=detail)
 
+    def publish_session(self, session_memory: Dict[str, Any]) -> None:
+        """Publish updated session memory state."""
+        self._current_session = session_memory
+        self.publish("session", session=session_memory)
+
     def publish_message(self, role: str, text: str) -> None:
         """Publish a completed user or assistant transcript message."""
         clean_text = (text or "").strip()
