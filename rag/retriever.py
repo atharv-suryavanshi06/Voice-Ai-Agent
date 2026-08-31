@@ -440,6 +440,20 @@ class PolicyRetriever:
             chunk for chunk in final_reranked
             if chunk.similarity_score >= self.min_relevance_score
         ]
+
+        # A scoped question can legitimately have strong lexical evidence even
+        # when the cross-encoder score is below the global threshold (for
+        # example, short spoken questions such as "what is the waiting period").
+        # Do not return an empty context when BM25 found matching chunks within
+        # the already-selected policy; keep the strict threshold for unscoped
+        # retrieval where cross-policy leakage would be unsafe.
+        if not final_reranked and policy_id_filter and bm25_candidates:
+            final_reranked = sorted(
+                bm25_candidates,
+                key=lambda chunk: chunk.similarity_score,
+                reverse=True,
+            )[:top_k]
+
         duration_ms = (time.perf_counter() - start_t) * 1000.0
         logger.info(
             "Policy retrieval completed",

@@ -125,6 +125,7 @@ h2 { font-size: 20px; letter-spacing: -0.035em; }
   max-height: 590px;
   padding: 24px 2px;
   overflow-y: auto;
+  scroll-behavior: smooth;
   scrollbar-width: thin;
   scrollbar-color: #ded9ea transparent;
 }

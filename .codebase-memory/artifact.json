@@ -1,0 +1,11 @@
+{
+    "schema_version": 2,
+    "commit": "d1d6a149e0fdb57bd638a68a6deb1bde18a18195",
+    "indexed_at": "2026-08-26T05:30:23Z",
+    "project": "Voice-Ai-Agent-m",
+    "nodes": 1470,
+    "edges": 5273,
+    "original_size": 6356992,
+    "compressed_size": 1226547,
+    "compression_level": 3
+}

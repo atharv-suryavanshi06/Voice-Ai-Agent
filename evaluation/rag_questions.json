@@ -1,0 +1,700 @@
+[
+  {
+    "id": 1,
+    "question": "What are the policy code and policy number for ApexCare Elevate Health Plan?",
+    "ground_truth": "Policy code AC/EHP/2026/D2; policy number ACH/EL/2026/00721904",
+    "expected_source_file": "ApexCare_Elevate_Health_Plan_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "ACH/EL/2026/00721904_chunk_0"
+    ],
+    "question_type": "code",
+    "difficulty": "easy"
+  },
+  {
+    "id": 2,
+    "question": "For ApexCare Elevate Health Plan, what is excluded under this Policy?",
+    "ground_truth": "Cosmetic treatments, dental treatment (unless due to accident), self-inflicted injury, and unproven/experimental treatments are among key exclusions. Refer to Section 10 for the full list.",
+    "expected_source_file": "ApexCare_Elevate_Health_Plan_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "ACH/EL/2026/00721904_chunk_49"
+    ],
+    "question_type": "faq",
+    "difficulty": "hard"
+  },
+  {
+    "id": 3,
+    "question": "For ApexCare Elevate Health Plan, what makes ApexCare Elevate different from a standard health plan?",
+    "ground_truth": "It combines zero-deduction hospitalisation cover with a fully digital servicing layer — instant e-Health Card, real-time claim tracking, and a dedicated Personal Health Coach under the Prime variant.",
+    "expected_source_file": "ApexCare_Elevate_Health_Plan_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "ACH/EL/2026/00721904_chunk_42"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 4,
+    "question": "For ApexCare Elevate Health Plan, what is the waiting period for pre-existing diseases?",
+    "ground_truth": "36 months of continuous coverage from the date of first inception of the policy with ApexCare, as per applicable IRDAI norms.",
+    "expected_source_file": "ApexCare_Elevate_Health_Plan_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "ACH/EL/2026/00721904_chunk_45"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 5,
+    "question": "For ApexCare Elevate Health Plan, can I port my existing policy to ApexCare?",
+    "ground_truth": "Yes, subject to IRDAI portability guidelines, at the time of renewal of your existing policy.",
+    "expected_source_file": "ApexCare_Elevate_Health_Plan_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "ACH/EL/2026/00721904_chunk_47"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 6,
+    "question": "For ApexCare Elevate Health Plan, does ApexCare offer an e-Health Card?",
+    "ground_truth": "Yes, an e-Health Card is issued instantly through the ApexCare App upon policy issuance, and can be used at any network hospital. ---",
+    "expected_source_file": "ApexCare_Elevate_Health_Plan_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "ACH/EL/2026/00721904_chunk_52"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 7,
+    "question": "What are the policy code and policy number for TrustShield Health Suraksha?",
+    "ground_truth": "Policy code TS/HSK/2026/V3; policy number TSG/HP/2026/00562481",
+    "expected_source_file": "TrustShield_Health_Suraksha_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "TSG/HP/2026/00562481_chunk_0"
+    ],
+    "question_type": "code",
+    "difficulty": "easy"
+  },
+  {
+    "id": 8,
+    "question": "For TrustShield Health Suraksha, what is the waiting period for pre-existing diseases?",
+    "ground_truth": "36 months of continuous coverage from the date of first inception of the policy with TrustShield, as per applicable IRDAI norms.",
+    "expected_source_file": "TrustShield_Health_Suraksha_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "TSG/HP/2026/00562481_chunk_46"
+    ],
+    "question_type": "faq",
+    "difficulty": "hard"
+  },
+  {
+    "id": 9,
+    "question": "For TrustShield Health Suraksha, what is TrustShield Health Suraksha?",
+    "ground_truth": "It is a comprehensive, indemnity-based health insurance plan offering high Sum Insured options, unlimited restoration for unrelated illnesses, and optional global emergency cover.",
+    "expected_source_file": "TrustShield_Health_Suraksha_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "TSG/HP/2026/00562481_chunk_42"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 10,
+    "question": "For TrustShield Health Suraksha, what happens if I do not renew my policy on time?",
+    "ground_truth": "A Grace Period of 30 days is provided. Coverage remains suspended during this period; continuity benefits are preserved only if renewal occurs within the Grace Period.",
+    "expected_source_file": "TrustShield_Health_Suraksha_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "TSG/HP/2026/00562481_chunk_49"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 11,
+    "question": "For TrustShield Health Suraksha, how can I track my claim status?",
+    "ground_truth": "Through the TrustShield mobile app, customer web portal, or by contacting the 24x7 toll-free helpline with your claim reference number.",
+    "expected_source_file": "TrustShield_Health_Suraksha_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "TSG/HP/2026/00562481_chunk_51"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 12,
+    "question": "For TrustShield Health Suraksha, does this plan cover consumables like gloves and PPE kits?",
+    "ground_truth": "Only if the optional Consumables Cover add-on has been opted for; otherwise, such items are excluded under the base plan. ---",
+    "expected_source_file": "TrustShield_Health_Suraksha_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "TSG/HP/2026/00562481_chunk_54"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 13,
+    "question": "What are the policy code and policy number for RSBN Mediclaim Suraksha?",
+    "ground_truth": "Policy code RSBN/MCS/2026/S1; policy number RSBN/MC/2026/00459187",
+    "expected_source_file": "RSBN_Mediclaim_Suraksha_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "RSBN/MC/2026/00459187_chunk_0"
+    ],
+    "question_type": "code",
+    "difficulty": "easy"
+  },
+  {
+    "id": 14,
+    "question": "For RSBN Mediclaim Suraksha, what is RSBN Mediclaim Suraksha?",
+    "ground_truth": "It is a traditional, affordably-priced indemnity health insurance policy providing hospitalisation cover through a wide network of empanelled hospitals, including major Government hospitals.",
+    "expected_source_file": "RSBN_Mediclaim_Suraksha_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "RSBN/MC/2026/00459187_chunk_41"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 15,
+    "question": "For RSBN Mediclaim Suraksha, are there sub-limits on specific diseases?",
+    "ground_truth": "Yes, select common procedures (e.g., cataract, hernia, knee replacement) carry disease-wise sub-limits as detailed in the Annexure to the Policy Schedule.",
+    "expected_source_file": "RSBN_Mediclaim_Suraksha_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "RSBN/MC/2026/00459187_chunk_44"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 16,
+    "question": "For RSBN Mediclaim Suraksha, what is the moratorium period?",
+    "ground_truth": "After 5 years of continuous coverage, RSBN cannot reject a claim on grounds of non-disclosure or misrepresentation, except in cases of proven fraud, as per IRDAI regulations.",
+    "expected_source_file": "RSBN_Mediclaim_Suraksha_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "RSBN/MC/2026/00459187_chunk_47"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 17,
+    "question": "For RSBN Mediclaim Suraksha, what is AYUSH cover under this policy?",
+    "ground_truth": "In-patient AYUSH treatment at a Government or Government-recognised AYUSH hospital is covered up to 25% of Sum Insured, subject to a maximum of ₹50,000 per Policy Year.",
+    "expected_source_file": "RSBN_Mediclaim_Suraksha_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "RSBN/MC/2026/00459187_chunk_50"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 18,
+    "question": "For RSBN Mediclaim Suraksha, can I port my existing health policy to RSBN?",
+    "ground_truth": "Yes, subject to IRDAI portability guidelines, at the time of renewal of your existing policy. ---",
+    "expected_source_file": "RSBN_Mediclaim_Suraksha_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "RSBN/MC/2026/00459187_chunk_52"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 19,
+    "question": "What are the policy code and policy number for SecureLife Family Health Suraksha?",
+    "ground_truth": "Policy code SLFH-2026; policy number SLFH/2026/0518291",
+    "expected_source_file": "SecureLife_Family_Health_Suraksha_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "SLFH/2026/0518291_chunk_1"
+    ],
+    "question_type": "code",
+    "difficulty": "easy"
+  },
+  {
+    "id": 20,
+    "question": "For SecureLife Family Health Suraksha, what is the No Claim Bonus?",
+    "ground_truth": "For every claim-free Policy Year, your Sum Insured increases by 10%, up to a maximum of 50%, at no extra premium cost.",
+    "expected_source_file": "SecureLife_Family_Health_Suraksha_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "SLFH/2026/0518291_chunk_50"
+    ],
+    "question_type": "faq",
+    "difficulty": "hard"
+  },
+  {
+    "id": 21,
+    "question": "For SecureLife Family Health Suraksha, what if I miss my renewal date?",
+    "ground_truth": "You have a 30-day Grace Period to renew; however, there is no coverage for the Grace Period itself, and missing this window forfeits your accrued No Claim Bonus and waiting period credits.",
+    "expected_source_file": "SecureLife_Family_Health_Suraksha_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "SLFH/2026/0518291_chunk_52"
+    ],
+    "question_type": "faq",
+    "difficulty": "hard"
+  },
+  {
+    "id": 22,
+    "question": "For SecureLife Family Health Suraksha, what does \"family floater\" mean?",
+    "ground_truth": "It means a single Sum Insured (here, ₹10,00,000) is shared across all insured family members, and any member can utilise part or all of it in a Policy Year.",
+    "expected_source_file": "SecureLife_Family_Health_Suraksha_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "SLFH/2026/0518291_chunk_44"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 23,
+    "question": "For SecureLife Family Health Suraksha, does the policy cover normal and caesarean delivery?",
+    "ground_truth": "Yes, after a 36-month waiting period, subject to sub-limits of ₹75,000 for normal delivery and ₹1,00,000 for caesarean delivery.",
+    "expected_source_file": "SecureLife_Family_Health_Suraksha_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "SLFH/2026/0518291_chunk_47"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 24,
+    "question": "For SecureLife Family Health Suraksha, can I switch (port) this policy from another insurer?",
+    "ground_truth": "Yes, subject to portability regulations issued by IRDAI, prior policy tenure and accrued benefits such as waiting periods already served may be carried forward, subject to underwriting. ---",
+    "expected_source_file": "SecureLife_Family_Health_Suraksha_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "SLFH/2026/0518291_chunk_55"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 25,
+    "question": "What are the policy code and policy number for SecureLife Term Protect Plus?",
+    "ground_truth": "Policy code SLTP-2026; policy number SLTP/2026/0417832",
+    "expected_source_file": "SecureLife_Term_Protect_Plus_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "SLTP/2026/0417832_chunk_1"
+    ],
+    "question_type": "code",
+    "difficulty": "easy"
+  },
+  {
+    "id": 26,
+    "question": "For SecureLife Term Protect Plus, can I pay premiums monthly?",
+    "ground_truth": "Yes, monthly premium payment via ECS/auto-debit is available, with an applicable frequency loading of 4%.",
+    "expected_source_file": "SecureLife_Term_Protect_Plus_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "SLTP/2026/0417832_chunk_50"
+    ],
+    "question_type": "faq",
+    "difficulty": "hard"
+  },
+  {
+    "id": 27,
+    "question": "For SecureLife Term Protect Plus, what is SecureLife Term Protect Plus?",
+    "ground_truth": "It is an individual, pure life risk protection plan that pays a lump sum (or lump sum plus income) to your nominee if you pass away during the Policy Term.",
+    "expected_source_file": "SecureLife_Term_Protect_Plus_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "SLTP/2026/0417832_chunk_45"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 28,
+    "question": "For SecureLife Term Protect Plus, is smoking status relevant to my premium?",
+    "ground_truth": "Yes. Premiums for tobacco users are higher than for non-tobacco users, reflecting differing mortality risk, and are determined based on declarations made at proposal stage.",
+    "expected_source_file": "SecureLife_Term_Protect_Plus_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "SLTP/2026/0417832_chunk_48"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 29,
+    "question": "For SecureLife Term Protect Plus, what is the Free Look Period?",
+    "ground_truth": "It is a 30-day window from receipt of your policy document during which you may review the policy and cancel it if you disagree with its terms, subject to specified deductions.",
+    "expected_source_file": "SecureLife_Term_Protect_Plus_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "SLTP/2026/0417832_chunk_53"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 30,
+    "question": "For SecureLife Term Protect Plus, what is Waiver of Premium Rider and how does it help?",
+    "ground_truth": "If you suffer an Accidental Total Permanent Disability, this rider (if opted) waives all future premiums while your life cover continues uninterrupted. ---",
+    "expected_source_file": "SecureLife_Term_Protect_Plus_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "SLTP/2026/0417832_chunk_55"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 31,
+    "question": "What are the policy code and policy number for VitalCare Family Health Shield?",
+    "ground_truth": "Policy code VC/FHS/2026/R2; policy number VCH/FL/2026/00193572",
+    "expected_source_file": "VitalCare_Family_Health_Shield_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "VCH/FL/2026/00193572_chunk_0"
+    ],
+    "question_type": "code",
+    "difficulty": "easy"
+  },
+  {
+    "id": 32,
+    "question": "For VitalCare Family Health Shield, can senior citizens buy this policy?",
+    "ground_truth": "Yes, there is no maximum entry age under this Policy, in line with IRDAI's lifetime renewability and age-inclusivity guidelines. A co-payment may apply for entry age 61 and above under the Silver variant.",
+    "expected_source_file": "VitalCare_Family_Health_Shield_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "VCH/FL/2026/00193572_chunk_48"
+    ],
+    "question_type": "faq",
+    "difficulty": "hard"
+  },
+  {
+    "id": 33,
+    "question": "For VitalCare Family Health Shield, what is VitalCare Family Health Shield?",
+    "ground_truth": "It is an indemnity-based health insurance plan that covers hospitalisation, day-care, and related medical expenses for individuals or the entire family under a single floater Sum Insured.",
+    "expected_source_file": "VitalCare_Family_Health_Shield_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "VCH/FL/2026/00193572_chunk_42"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 34,
+    "question": "For VitalCare Family Health Shield, are day-care procedures covered?",
+    "ground_truth": "Yes, over 550 day-care procedures that do not require 24-hour hospitalisation are covered under this Policy.",
+    "expected_source_file": "VitalCare_Family_Health_Shield_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "VCH/FL/2026/00193572_chunk_45"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 35,
+    "question": "For VitalCare Family Health Shield, what is not covered under this Policy?",
+    "ground_truth": "Cosmetic treatments, dental treatment (unless due to accident), self-inflicted injuries, and treatment outside India (unless specifically covered) are among the key exclusions. Refer to Section 10 for the complete list.",
+    "expected_source_file": "VitalCare_Family_Health_Shield_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "VCH/FL/2026/00193572_chunk_51"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 36,
+    "question": "For VitalCare Family Health Shield, what happens to my Cumulative Bonus if I make a claim?",
+    "ground_truth": "The Cumulative Bonus reduces by 10% at the next renewal for each policy year in which a claim is made, but the base Sum Insured is never reduced below the originally opted amount. ---",
+    "expected_source_file": "VitalCare_Family_Health_Shield_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "VCH/FL/2026/00193572_chunk_53"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 37,
+    "question": "What are the policy code and policy number for WellNest Total HealthCare?",
+    "ground_truth": "Policy code WN/THC/2026/E1; policy number WNH/FP/2026/00378965",
+    "expected_source_file": "WellNest_Total_HealthCare_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "WNH/FP/2026/00378965_chunk_0"
+    ],
+    "question_type": "code",
+    "difficulty": "easy"
+  },
+  {
+    "id": 38,
+    "question": "For WellNest Total HealthCare, do Wellness Points expire?",
+    "ground_truth": "Yes, Wellness Points accumulated in a Policy Year must be redeemed at the immediately following renewal and do not carry forward beyond that renewal cycle. ---",
+    "expected_source_file": "WellNest_Total_HealthCare_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "WNH/FP/2026/00378965_chunk_53"
+    ],
+    "question_type": "faq",
+    "difficulty": "hard"
+  },
+  {
+    "id": 39,
+    "question": "For WellNest Total HealthCare, what is WellNest Total HealthCare?",
+    "ground_truth": "It is a wellness-linked health insurance plan combining comprehensive hospitalisation cover with everyday benefits like OPD consultations, teleconsultation, and a rewards-based Wellness Programme.",
+    "expected_source_file": "WellNest_Total_HealthCare_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "WNH/FP/2026/00378965_chunk_42"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 40,
+    "question": "For WellNest Total HealthCare, what is the waiting period for pre-existing diseases?",
+    "ground_truth": "36 months of continuous coverage from the date of first inception of the policy with WellNest, as per applicable IRDAI norms.",
+    "expected_source_file": "WellNest_Total_HealthCare_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "WNH/FP/2026/00378965_chunk_45"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 41,
+    "question": "For WellNest Total HealthCare, what is the moratorium period?",
+    "ground_truth": "After 5 years of continuous coverage, WellNest cannot reject a claim on grounds of non-disclosure or misrepresentation, except where fraud is established.",
+    "expected_source_file": "WellNest_Total_HealthCare_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "WNH/FP/2026/00378965_chunk_48"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 42,
+    "question": "For WellNest Total HealthCare, what is not covered under this Policy?",
+    "ground_truth": "Cosmetic treatments, dental treatment (unless due to accident), self-inflicted injuries, and OPD expenses beyond applicable sub-limits are among the key exclusions. Refer to Section 10 for the full list.",
+    "expected_source_file": "WellNest_Total_HealthCare_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "WNH/FP/2026/00378965_chunk_51"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 43,
+    "question": "What are the policy code and policy number for SecureLife Individual Health Shield?",
+    "ground_truth": "Policy code SIHS-2026; policy number SLI/SIHS/2026/00458231",
+    "expected_source_file": "SecureLife_Individual_Health_Shield_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "SLI/SIHS/2026/00458231_chunk_0"
+    ],
+    "question_type": "code",
+    "difficulty": "easy"
+  },
+  {
+    "id": 44,
+    "question": "For SecureLife Individual Health Shield, what is the difference between cashless and reimbursement claims?",
+    "ground_truth": "In a cashless claim, the Company/TPA settles the bill directly with the network hospital. In a reimbursement claim, the insured pays the hospital first and later claims reimbursement from the Company.",
+    "expected_source_file": "SecureLife_Individual_Health_Shield_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "SLI/SIHS/2026/00458231_chunk_34"
+    ],
+    "question_type": "faq",
+    "difficulty": "hard"
+  },
+  {
+    "id": 45,
+    "question": "For SecureLife Individual Health Shield, what is the Free Look Period?",
+    "ground_truth": "A 15-day window from receipt of the policy document to review the terms and cancel if unsatisfactory, with proportionate deductions as applicable.",
+    "expected_source_file": "SecureLife_Individual_Health_Shield_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "SLI/SIHS/2026/00458231_chunk_43"
+    ],
+    "question_type": "faq",
+    "difficulty": "hard"
+  },
+  {
+    "id": 46,
+    "question": "For SecureLife Individual Health Shield, does this plan cover maternity expenses?",
+    "ground_truth": "No. This individual plan does not cover pregnancy, childbirth, or related complications. Policyholders seeking maternity cover may consider the SecureLife Family Health Suraksha plan.",
+    "expected_source_file": "SecureLife_Individual_Health_Shield_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "SLI/SIHS/2026/00458231_chunk_37"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 47,
+    "question": "For SecureLife Individual Health Shield, can I increase my Sum Insured at renewal?",
+    "ground_truth": "Yes, subject to underwriting approval and possibly a fresh waiting period applicable only to the increased portion of the Sum Insured.",
+    "expected_source_file": "SecureLife_Individual_Health_Shield_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "SLI/SIHS/2026/00458231_chunk_40"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 48,
+    "question": "For SecureLife Individual Health Shield, is COVID-19 or similar pandemic illness covered?",
+    "ground_truth": "Yes, hospitalization due to any illness, including notified pandemic illnesses, is covered as per standard policy terms, subject to applicable waiting periods and exclusions. ---",
+    "expected_source_file": "SecureLife_Individual_Health_Shield_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "SLI/SIHS/2026/00458231_chunk_46"
+    ],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 49,
+    "question": "What are the policy code and policy number for SecureLife Family Health Suraksha?",
+    "ground_truth": "Policy code SFHS-2026; policy number SLI/FHS/2026/00792144",
+    "expected_source_file": "SecureLife_Family_Health_Suraksha_Policy_Document.md",
+    "source_pages": [],
+    "expected_chunk_ids": [
+      "SLI/FHS/2026/00792144_chunk_0"
+    ],
+    "question_type": "code",
+    "difficulty": "easy"
+  },
+  {
+    "id": 50,
+    "question": "For SecureLife Family Health Suraksha, can I choose any hospital for cashless treatment?",
+    "ground_truth": "Cashless facility is available only at hospitals within the Company's Network Hospital list. Treatment at a non-network hospital can be claimed on a reimbursement basis.",
+    "expected_source_file": "",
+    "source_pages": [],
+    "expected_chunk_ids": [],
+    "question_type": "faq",
+    "difficulty": "hard"
+  },
+  {
+    "id": 51,
+    "question": "For SecureLife Family Health Suraksha, what is the Free Look Period?",
+    "ground_truth": "A 15-day window from receipt of the policy document to review the terms and cancel if unsatisfactory, with proportionate deductions as applicable.",
+    "expected_source_file": "",
+    "source_pages": [],
+    "expected_chunk_ids": [],
+    "question_type": "faq",
+    "difficulty": "hard"
+  },
+  {
+    "id": 52,
+    "question": "For SecureLife Family Health Suraksha, how is a family floater policy different from an individual policy?",
+    "ground_truth": "In a floater policy, all covered family members share a single Sum Insured, which any member can draw upon (fully or partially) in a given policy year. In an individual policy, each person has an independent, separate Sum Insured.",
+    "expected_source_file": "",
+    "source_pages": [],
+    "expected_chunk_ids": [],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 53,
+    "question": "For SecureLife Family Health Suraksha, what is the Multiplier Benefit?",
+    "ground_truth": "If the family's total claims in a year are less than 25% of the Sum Insured, the floater Sum Insured increases by 10% at renewal (up to 50% cumulative), benefiting the whole family, not just one member.",
+    "expected_source_file": "",
+    "source_pages": [],
+    "expected_chunk_ids": [],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 54,
+    "question": "For SecureLife Family Health Suraksha, can I port my existing family floater policy from another insurer to this plan?",
+    "ground_truth": "Yes, subject to IRDAI Portability Guidelines. Credit for waiting periods already served (including maternity waiting period, if applicable and disclosed) is considered, provided the port request is made 45–60 days before the previous policy's renewal date.",
+    "expected_source_file": "",
+    "source_pages": [],
+    "expected_chunk_ids": [],
+    "question_type": "faq",
+    "difficulty": "medium"
+  },
+  {
+    "id": 55,
+    "question": "Does any policy cover repairs to my mobile phone screen?",
+    "ground_truth": "No supporting policy evidence; canonical fallback required.",
+    "expected_source_file": "",
+    "source_pages": [],
+    "expected_chunk_ids": [],
+    "question_type": "negative",
+    "difficulty": "hard"
+  },
+  {
+    "id": 56,
+    "question": "Which policy covers a space shuttle engine explosion?",
+    "ground_truth": "No supporting policy evidence; canonical fallback required.",
+    "expected_source_file": "",
+    "source_pages": [],
+    "expected_chunk_ids": [],
+    "question_type": "negative",
+    "difficulty": "hard"
+  },
+  {
+    "id": 57,
+    "question": "Can I claim insurance for damage to my private car?",
+    "ground_truth": "No supporting policy evidence; canonical fallback required.",
+    "expected_source_file": "",
+    "source_pages": [],
+    "expected_chunk_ids": [],
+    "question_type": "negative",
+    "difficulty": "hard"
+  },
+  {
+    "id": 58,
+    "question": "Does the plan pay for cryptocurrency investment losses?",
+    "ground_truth": "No supporting policy evidence; canonical fallback required.",
+    "expected_source_file": "",
+    "source_pages": [],
+    "expected_chunk_ids": [],
+    "question_type": "negative",
+    "difficulty": "hard"
+  },
+  {
+    "id": 59,
+    "question": "What benefit covers a holiday cancellation on Mars?",
+    "ground_truth": "No supporting policy evidence; canonical fallback required.",
+    "expected_source_file": "",
+    "source_pages": [],
+    "expected_chunk_ids": [],
+    "question_type": "negative",
+    "difficulty": "hard"
+  },
+  {
+    "id": 60,
+    "question": "Can this health policy reimburse restaurant bills?",
+    "ground_truth": "No supporting policy evidence; canonical fallback required.",
+    "expected_source_file": "",
+    "source_pages": [],
+    "expected_chunk_ids": [],
+    "question_type": "negative",
+    "difficulty": "hard"
+  }
+]

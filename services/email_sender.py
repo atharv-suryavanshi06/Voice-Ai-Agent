@@ -109,7 +109,7 @@ class EmailService:
                 )
             return False
 
-        name_str = customer_name.title() if customer_name else "Valued Customer"
+        name_str = customer_name.strip().title() if customer_name and customer_name.strip() else "Customer"
         top_policy = policies[0] if policies else None
         top_policy_id = top_policy.policy_id if top_policy else "N/A"
         top_policy_name = top_policy.policy_name if top_policy else "Recommended Insurance Policy"
@@ -191,12 +191,8 @@ class EmailService:
                 </div>
             """
 
-        if doc_text:
-            html_content += f"""
-                <h3>Complete Policy Terms & Document Details</h3>
-                <p>Below is the complete text of the policy document stored in our system database:</p>
-                <div class="doc-box">{doc_text[:4000]} {"... (truncated for preview)" if len(doc_text) > 4000 else ""}</div>
-            """
+        # The complete document is delivered as the verified PDF attachment below.
+        # Do not embed extracted document text in the email body.
 
         html_content += """
                 <p>If you have any questions or would like to complete your policy enrollment, please reply directly to this email or speak with your assigned advisor.</p>
@@ -224,11 +220,13 @@ class EmailService:
             else "Recommended_Insurance_Policy_Document.pdf"
         )
 
+        attachment_added = False
         if pdf_bytes:
             try:
                 part = MIMEApplication(pdf_bytes, Name=pdf_name)
                 part['Content-Disposition'] = f'attachment; filename="{pdf_name}"'
                 msg.attach(part)
+                attachment_added = True
                 print(f"[Email Service] Attached complete PDF ({len(pdf_bytes):,} bytes) fetched directly from PostgreSQL.")
             except Exception as pdf_err:
                 logger.warning(f"Could not attach PostgreSQL PDF binary: {pdf_err}")
@@ -241,39 +239,51 @@ class EmailService:
                     part = MIMEApplication(f.read(), Name=attachment_name)
                     part['Content-Disposition'] = f'attachment; filename="{attachment_name}"'
                     msg.attach(part)
+                    attachment_added = True
             except Exception as pdf_err:
                 logger.warning(f"Could not attach PDF file: {pdf_err}")
 
 
-        # Send via Gmail SMTP
-        try:
-            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
-                server.starttls()
-                server.login(self.sender_email, self.app_password)
-                server.sendmail(self.sender_email, [recipient_email], msg.as_string())
-
-            print(f"[Email Service] Successfully sent policy recommendation email to '{recipient_email}'.")
-
-            if db_manager and hasattr(db_manager, "log_sent_email"):
-                db_manager.log_sent_email(
-                    session_id=session_id or "unknown",
-                    recipient_email=recipient_email,
-                    policy_id=top_policy_id,
-                    policy_name=top_policy_name,
-                    status="SUCCESS",
-                )
-            return True
-        except Exception as e:
-            err_msg = _safe_error_message(e)
-            print("[Email Service Error] Failed to send email via Gmail SMTP. See application logs for details.")
-            logger.error("SMTP delivery failed: %s", err_msg)
-            if db_manager and hasattr(db_manager, "log_sent_email"):
-                db_manager.log_sent_email(
-                    session_id=session_id or "unknown",
-                    recipient_email=recipient_email,
-                    policy_id=top_policy_id,
-                    policy_name=top_policy_name,
-                    status="FAILED",
-                    error_message=err_msg,
-                )
+        if top_policy and db_manager and doc_data is not None and not attachment_added:
+            logger.error("Refusing to send policy email without a verified PDF attachment", extra={"policy_id": top_policy_id})
             return False
+
+        # Send via Gmail SMTP, retrying twice for transient failures.
+        last_error = None
+        for attempt in range(3):
+            try:
+                with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                    server.starttls()
+                    server.login(self.sender_email, self.app_password)
+                    refused = server.sendmail(self.sender_email, [recipient_email], msg.as_string())
+                    if refused:
+                        raise RuntimeError(f"SMTP refused recipients: {', '.join(refused)}")
+
+                print(f"[Email Service] Successfully sent policy recommendation email to '{recipient_email}' on attempt {attempt + 1}.")
+                if db_manager and hasattr(db_manager, "log_sent_email"):
+                    db_manager.log_sent_email(
+                        session_id=session_id or "unknown",
+                        recipient_email=recipient_email,
+                        policy_id=top_policy_id,
+                        policy_name=top_policy_name,
+                        status="SUCCESS",
+                    )
+                return True
+            except Exception as e:
+                last_error = e
+                err_msg = _safe_error_message(e)
+                logger.warning("SMTP delivery attempt %d failed: %s", attempt + 1, err_msg)
+
+        err_msg = _safe_error_message(last_error) if last_error else "SMTP delivery failed"
+        print("[Email Service Error] Failed to send email after three SMTP attempts.")
+        logger.error("SMTP delivery failed after retry: %s", err_msg)
+        if db_manager and hasattr(db_manager, "log_sent_email"):
+            db_manager.log_sent_email(
+                session_id=session_id or "unknown",
+                recipient_email=recipient_email,
+                policy_id=top_policy_id,
+                policy_name=top_policy_name,
+                status="FAILED",
+                error_message=err_msg,
+            )
+        return False

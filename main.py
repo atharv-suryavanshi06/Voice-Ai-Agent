@@ -71,6 +71,12 @@ async def shutdown_active_resources() -> None:
     global active_session_manager, active_db_manager, active_background_worker
     global active_metrics_tracker, active_dashboard_server, active_dashboard_task
 
+    if active_metrics_tracker is not None:
+        try:
+            active_metrics_tracker.print_summary()
+        except Exception:
+            logger.exception("Failed to print active metrics summary")
+
     if active_background_worker is not None:
         try:
             await active_background_worker.close(timeout=10.0)
@@ -271,6 +277,20 @@ class ConversationManagerProcessor(FrameProcessor):
             user_msgs = [m for m in context.messages if _get_message_role(m) == "user"]
             if user_msgs:
                 last_user_msg = normalize_stt_aliases(_get_message_content(user_msgs[-1]))
+                # Voice turn detection can split one spoken policy question into
+                # several user messages. Combine fragments since the preceding
+                # assistant reply for complete policy identity and retrieval.
+                last_assistant_index = max(
+                    (i for i, message in enumerate(context.messages)
+                     if _get_message_role(message) == "assistant"),
+                    default=-1,
+                )
+                turn_user_msgs = [
+                    _get_message_content(message)
+                    for message in context.messages[last_assistant_index + 1:]
+                    if _get_message_role(message) == "user"
+                ]
+                policy_query = normalize_stt_aliases(" ".join(turn_user_msgs)).strip()
                 self._last_user_msg = last_user_msg
                 self._turn_start_t = time.perf_counter()
                 is_initial_greeting = last_user_msg.strip() == INITIAL_GREETING_TRIGGER
@@ -287,19 +307,19 @@ class ConversationManagerProcessor(FrameProcessor):
                     self._is_first_turn = False
                     live_event_hub.publish_session(self._manager.get_session_memory())
                 else:
-                    is_policy_q = self._manager.should_retrieve_policy_context(last_user_msg)
+                    is_policy_q = self._manager.should_retrieve_policy_context(policy_query)
                     retrieved_chunks = None
                     retrieval_error = False
                     if is_policy_q:
                         try:
-                            policy_id_filter = self._manager.prepare_policy_context(last_user_msg)
+                            policy_id_filter = self._manager.prepare_policy_context(policy_query)
                             if self._manager.policy_selection_required:
                                 live_event_hub.set_activity("Clarifying policy", "Waiting for the policy name or number")
                             else:
                                 live_event_hub.set_activity("Searching policy knowledge", "Retrieving relevant policy details")
                                 retrieved_chunks = await asyncio.to_thread(
                                     self._rag_service.retrieve_relevant,
-                                    last_user_msg,
+                                    policy_query,
                                     policy_id_filter,
                                     5,
                                 )
@@ -332,7 +352,17 @@ class ConversationManagerProcessor(FrameProcessor):
                         and (self._manager.last_sent_email or "") != confirmed_email.strip().lower()
                     )
                     if should_attempt_email:
-                        await self._manager.maybe_trigger_email_async(self._email_service, self._db_manager)
+                        email_sent = await self._manager.maybe_trigger_email_async(
+                            self._email_service, self._db_manager
+                        )
+                        logger.info(
+                            "Email delivery attempt completed",
+                            extra={
+                                "session_id": self._manager.session_id,
+                                "email_sent": email_sent,
+                                "email_state": self._manager.email_state.value,
+                            },
+                        )
                         system_prompt = self._manager.build_system_prompt(
                             retrieved_chunks=retrieved_chunks,
                             retrieval_error=retrieval_error,

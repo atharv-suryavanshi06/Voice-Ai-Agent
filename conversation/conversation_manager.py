@@ -120,6 +120,8 @@ class ConversationManager:
         self.asked_fields: Set[str] = set()
         self.recommendation_delivered: bool = False
         self.email_sent: bool = False
+        # The assistant may claim delivery only after this flag is True.
+        self.email_send_success: bool = False
         self.email_state: EmailDeliveryState = EmailDeliveryState.NOT_REQUESTED
         self.last_sent_email: Optional[str] = None
         self._message_sequence: int = 0
@@ -170,6 +172,8 @@ class ConversationManager:
 
         current_email = self.profile.email.strip().lower()
         if self.last_sent_email and current_email == self.last_sent_email:
+            self.email_sent = True
+            self.email_send_success = True
             self.email_state = EmailDeliveryState.SENT
             return True
 
@@ -184,7 +188,10 @@ class ConversationManager:
             self.email_state = EmailDeliveryState.FAILED
             return False
 
+        self.email_sent = False
+        self.email_send_success = False
         self.email_state = EmailDeliveryState.PENDING
+        logger.info("Attempting verified email delivery", extra={"session_id": self.session_id})
         try:
             success = email_service.send_policy_recommendation_email(
                 recipient_email=self.profile.email,
@@ -199,12 +206,19 @@ class ConversationManager:
 
         if success:
             self.email_sent = True
+            self.email_send_success = True
             self.email_state = EmailDeliveryState.SENT
             self.last_sent_email = current_email
+            logger.info("Verified email delivery succeeded", extra={"session_id": self.session_id})
             return True
 
         self.email_sent = False
+        self.email_send_success = False
         self.email_state = EmailDeliveryState.FAILED if service_configured else EmailDeliveryState.DISABLED
+        logger.warning(
+            "Verified email delivery did not complete; retaining confirmed address for retry",
+            extra={"session_id": self.session_id, "email_state": self.email_state.value},
+        )
         return False
 
     async def maybe_trigger_email_async(self, email_service: Any, db_manager: Any = None) -> bool:
@@ -293,12 +307,15 @@ class ConversationManager:
         else:
             self.last_unrecognized_question = None
 
-        if self.is_profile_complete() or self._has_age_disqualification():
+        # Policy questions are side-trips and must take precedence over the
+        # recommendation transition. Otherwise the first question after profile
+        # completion enters RECOMMENDING_POLICY, whose prompt omits RAG context.
+        if is_policy_question:
+            self.transition_state(ConversationState.ANSWERING_POLICY_QUESTIONS)
+        elif self.is_profile_complete() or self._has_age_disqualification():
             if not self.recommendation_delivered:
                 self.recommendation_delivered = True
                 self.transition_state(ConversationState.RECOMMENDING_POLICY)
-            elif is_policy_question:
-                self.transition_state(ConversationState.ANSWERING_POLICY_QUESTIONS)
             else:
                 self._advance_state(message)
         else:
@@ -670,6 +687,7 @@ class ConversationManager:
                 self.profile.email_confirmed = False
                 self.email_state = EmailDeliveryState.PENDING
                 self.email_sent = False
+                self.email_send_success = False
                 updated_fields.add("email")
 
         pending_field = self.pending_question.field_name if self.pending_question else None
@@ -752,6 +770,7 @@ class ConversationManager:
             self.profile.email_confirmed = False
             self.email_state = EmailDeliveryState.PENDING
             self.email_sent = False
+            self.email_send_success = False
 
         if not fragment:
             return None

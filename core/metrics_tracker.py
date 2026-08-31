@@ -10,8 +10,10 @@ Accurately tracks and reports latency (TTFB & total response time) and usage/tok
 Prints a detailed latency and token usage table when main.py is stopped.
 """
 
+import atexit
 import time
 import math
+import weakref
 from typing import List, Optional
 from pipecat.processors.frame_processor import FrameProcessor, FrameDirection
 from pipecat.frames.frames import (
@@ -26,6 +28,20 @@ from pipecat.metrics.metrics import (
 )
 from core import config
 from core.live_events import live_event_hub
+_ACTIVE_TRACKERS = weakref.WeakSet()
+
+
+def _flush_unprinted_trackers() -> None:
+    """Print active metrics before the interpreter exits."""
+    for tracker in list(_ACTIVE_TRACKERS):
+        if not tracker._summary_printed and any((
+            tracker.llm_calls, tracker.embedding_calls, tracker.stt_calls,
+            tracker.tts_calls, tracker.llm_total_tokens,
+        )):
+            tracker.print_summary()
+
+
+atexit.register(_flush_unprinted_trackers)
 
 
 def mask_api_key(key: Optional[str]) -> str:
@@ -45,6 +61,9 @@ class MetricsTracker:
     """
 
     def __init__(self):
+        self._summary_printed = False
+        _ACTIVE_TRACKERS.add(self)
+
         # 1. Google Gemini LLM Metrics
         self.llm_calls: int = 0
         self.llm_ttfbs: List[float] = []            # Latency to first token (ms)
@@ -172,6 +191,9 @@ class MetricsTracker:
 
     def print_summary(self):
         """Prints a comprehensive latency & token usage report per API key to stdout."""
+        if self._summary_printed:
+            return
+        self._summary_printed = True
         def avg(lst: List[float]) -> float:
             return sum(lst) / len(lst) if lst else 0.0
 

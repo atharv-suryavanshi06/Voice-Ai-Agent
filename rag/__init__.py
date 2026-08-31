@@ -11,6 +11,7 @@ from rag.vector_store import PolicyVectorStore
 from rag.retriever import PolicyRetriever
 from rag.prompt_builder import RAGPromptBuilder
 from rag.rag_pipeline import RAGPipeline
+from rag.validator import RAGAnswerValidator
 
 __all__ = [
     "SemanticChunker", 
@@ -22,5 +23,6 @@ __all__ = [
     "PolicyVectorStore", 
     "PolicyRetriever",
     "RAGPromptBuilder",
-    "RAGPipeline"
+    "RAGPipeline",
+    "RAGAnswerValidator"
 ]

@@ -236,14 +236,18 @@ def _recommending_policy_instructions(
 
 def _email_delivery_instructions(email_state: str) -> str:
     messages = {
-        "sent": "Email delivery succeeded. You may truthfully say the policy details were sent.",
-        "failed": "Email delivery failed. Say you were unable to send it and offer a polite retry; do not expose technical details.",
-        "disabled": "Email delivery is unavailable because the service is not configured. Say you cannot send it right now; do not claim success.",
-        "pending": "Email delivery has not completed. Do not claim that it was sent.",
-        "invalid": "There is no valid confirmed email address. Do not claim that anything was sent.",
-        "not_requested": "The caller did not request or confirm email delivery. Do not mention that an email was sent.",
+        "sent": "VERIFIED DELIVERY SUCCESS: email delivery succeeded because the SMTP send operation returned success. You may say the policy details were sent.",
+        "failed": "VERIFIED DELIVERY FAILURE: email delivery failed after all three SMTP attempts. Say you could not send the document, offer to retry using the confirmed address, and do not say or imply it was sent.",
+        "disabled": "VERIFIED DELIVERY UNAVAILABLE: the email service is not configured. Say you cannot send it right now; never claim success.",
+        "pending": "VERIFIED DELIVERY PENDING: the send operation has not returned success. Never say, imply, or confirm that an email was sent.",
+        "invalid": "VERIFIED DELIVERY BLOCKED: there is no valid confirmed email address. Do not claim that anything was sent.",
+        "not_requested": "VERIFIED DELIVERY NOT REQUESTED: do not mention that an email was sent.",
     }
-    return f"EMAIL DELIVERY STATE: {email_state}. {messages.get(email_state, messages['not_requested'])}"
+    return (
+        f"EMAIL DELIVERY STATE: {email_state}. {messages.get(email_state, messages['not_requested'])} "
+        "The exact phrases 'I have sent the email', 'I sent the email', and 'the details were sent' "
+        "are forbidden unless the state is sent."
+    )
 
 
 def _ending_call_instructions(email_state: str = "not_requested") -> str:

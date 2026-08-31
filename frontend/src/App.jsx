@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 
 const MAX_MESSAGES = 120
@@ -24,6 +24,11 @@ function App() {
   const [messages, setMessages] = useState([])
   const [activities, setActivities] = useState([])
   const [sessionMemory, setSessionMemory] = useState(null)
+  const messagesEndRef = useRef(null)
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   const currentActivity = activities[0] || {
     label: connection === 'connected' ? 'Listening' : 'Waiting for backend',
@@ -133,6 +138,7 @@ function App() {
                 </article>
               ))
             )}
+            <div ref={messagesEndRef} />
           </div>
 
           <div className="now-playing">
@@ -192,21 +198,6 @@ function App() {
           </div>
 
           <div className="session-details">
-            <div className="detail-row">
-              <span>City / Gender</span>
-              <strong>
-                {sessionMemory?.city && sessionMemory.city !== 'Not specified' ? sessionMemory.city : '—'}
-                {sessionMemory?.gender && sessionMemory.gender !== 'Not specified' ? ` (${sessionMemory.gender})` : ''}
-              </strong>
-            </div>
-            <div className="detail-row">
-              <span>Pre-existing Conditions</span>
-              <strong>
-                {sessionMemory?.existing_diseases && sessionMemory.existing_diseases.length > 0
-                  ? sessionMemory.existing_diseases.join(', ')
-                  : 'None reported'}
-              </strong>
-            </div>
             <div className="detail-row">
               <span>Email Address</span>
               <strong className="email-value">{sessionMemory?.email || 'Not specified'}</strong>

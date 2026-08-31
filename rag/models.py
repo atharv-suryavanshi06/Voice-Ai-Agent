@@ -72,6 +72,8 @@ class RAGResponse:
     retrieved_chunks: List[RetrievedChunk]
     sources: List[str]
     policy_id: Optional[str] = None
+    is_valid: bool = True
+    was_reframed: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         """Serializes the RAGResponse object to a dictionary."""
@@ -79,7 +81,9 @@ class RAGResponse:
             "answer": self.answer,
             "retrieved_chunks": [c.to_dict() for c in self.retrieved_chunks],
             "sources": self.sources,
-            "policy_id": self.policy_id
+            "policy_id": self.policy_id,
+            "is_valid": self.is_valid,
+            "was_reframed": self.was_reframed,
         }
 
     @classmethod
@@ -89,5 +93,7 @@ class RAGResponse:
             answer=str(data["answer"]),
             retrieved_chunks=[RetrievedChunk.from_dict(c) for c in data["retrieved_chunks"]],
             sources=list(data["sources"]),
-            policy_id=data.get("policy_id")
+            policy_id=data.get("policy_id"),
+            is_valid=bool(data.get("is_valid", True)),
+            was_reframed=bool(data.get("was_reframed", False)),
         )

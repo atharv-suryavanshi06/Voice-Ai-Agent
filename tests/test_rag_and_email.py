@@ -96,6 +96,47 @@ class RAGBehaviorTests(unittest.TestCase):
         self.assertTrue(retriever._is_active_catalog_policy("listed"))
         self.assertFalse(retriever._is_active_catalog_policy("legacy"))
 
+    def test_answer_validator_verifies_ground_truth_facts(self):
+        from rag.validator import RAGAnswerValidator
+        validator = RAGAnswerValidator()
+        chunk = RetrievedChunk("c1", "p1", "Test Policy", 0, "The sum insured is 50,00,000 rupees.", 0.95)
+
+        # Valid grounded answer
+        is_valid, _ = validator.validate_answer("What is sum insured?", "The sum insured is 50,00,000 rupees.", [chunk])
+        self.assertTrue(is_valid)
+
+        # Invalid ungrounded numerical claim
+        is_valid, reason = validator.validate_answer("What is sum insured?", "The sum insured is 99,00,000 rupees.", [chunk])
+        self.assertFalse(is_valid)
+        self.assertIn("not supported", reason)
+
+    def test_validator_reframe_question_strips_filler(self):
+        from rag.validator import RAGAnswerValidator
+        validator = RAGAnswerValidator()
+        reframed = validator.reframe_question("Could you please tell me what is the ambulance limit")
+        self.assertEqual(reframed, "ambulance limit")
+
+    def test_claim_by_claim_validation_accepts_paraphrased_summary(self):
+        from rag.validator import RAGAnswerValidator
+        validator = RAGAnswerValidator()
+        chunk = RetrievedChunk("c1", "p1", "Test Policy", 0, "Customers must submit a written request within thirty calendar days from the purchase date.", 0.95)
+
+        # Multi-sentence paraphrased response with verified 30 days numerical claim
+        answer = "You have 30 days to request a refund. Requests must be submitted in writing."
+        is_valid, reason = validator.validate_answer("What is refund window?", answer, [chunk])
+        self.assertTrue(is_valid, f"Expected paraphrased summary to pass, failed with: {reason}")
+
+    def test_claim_by_claim_validation_rejects_partially_fabricated_multi_sentence_answer(self):
+        from rag.validator import RAGAnswerValidator
+        validator = RAGAnswerValidator()
+        chunk = RetrievedChunk("c1", "p1", "Test Policy", 0, "Pre-existing diseases are covered after 36 months.", 0.95)
+
+        # First claim is valid, second claim contains fabricated number 999999
+        answer = "Pre-existing diseases are covered after 36 months. Emergency moon travel is covered up to 999999 rupees."
+        is_valid, reason = validator.validate_answer("What is waiting period?", answer, [chunk])
+        self.assertFalse(is_valid)
+        self.assertIn("999999", reason)
+
 
 class PolicyConversationRoutingTests(unittest.TestCase):
     def _policy(self, policy_id, policy_name, insurer="Example Insurance"):
@@ -204,6 +245,22 @@ class EmailTruthfulnessTests(unittest.TestCase):
         prompt = failed.build_system_prompt().lower()
         self.assertIn("delivery failed", prompt)
         self.assertNotIn("details have been sent", prompt)
+
+    def test_failed_delivery_keeps_confirmed_address_for_a_retry(self):
+        manager = self._manager()
+        service = FakeEmailService(result=False)
+
+        self.assertFalse(manager.maybe_trigger_email(service))
+        self.assertEqual(manager.email_state, EmailDeliveryState.FAILED)
+        self.assertTrue(manager.profile.email_confirmed)
+        self.assertEqual(manager.profile.email, "person@example.com")
+        self.assertFalse(manager.email_send_success)
+
+        service.result = True
+        self.assertTrue(manager.maybe_trigger_email(service))
+        self.assertEqual(service.calls, 2)
+        self.assertEqual(manager.email_state, EmailDeliveryState.SENT)
+        self.assertTrue(manager.email_send_success)
 
     def test_disabled_invalid_and_absent_email_never_claim_success(self):
         disabled = self._manager()
